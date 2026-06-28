@@ -8,31 +8,34 @@ import { IConversationRepository } from '../../domain/repositories/IConversation
 import { IBusinessSettingsRepository } from '../../domain/repositories/IBusinessSettingsRepository'
 import { RAGService } from './RAGService'
 
-const MAX_TOOL_ITERATIONS = 5
+const MAX_TOOL_ITERATIONS = 8
 
 const AGENT_TOOLS: AITool[] = [
   {
-    name: 'get_available_slots',
-    description: 'Consulta horários disponíveis no Google Calendar para agendamento.',
+    name: 'get_slots_for_date',
+    description:
+      'Consulta os horários disponíveis no Google Calendar para uma data específica. Use SOMENTE depois que o cliente informar o dia desejado.',
     input_schema: {
       type: 'object',
       properties: {
-        days_ahead: {
-          type: 'number',
-          description: 'Quantos dias à frente buscar (padrão: 7)',
+        date: {
+          type: 'string',
+          description: 'Data no formato YYYY-MM-DD (ex: 2026-07-15). Interprete a linguagem natural do cliente para obter a data correta.',
         },
       },
+      required: ['date'],
     },
   },
   {
     name: 'find_or_create_vehicle',
-    description: 'Verifica se já existe um veículo com a placa informada para o cliente. Se não existir, cria um novo.',
+    description:
+      'Verifica se já existe um veículo com a placa informada para este cliente. Se existir, retorna os dados. Se não existir, cria um novo. Marca, modelo e placa são OBRIGATÓRIOS.',
     input_schema: {
       type: 'object',
       properties: {
         plate: { type: 'string', description: 'Placa do veículo (ex: ABC1234 ou ABC1D23)' },
-        brand: { type: 'string', description: 'Marca do veículo' },
-        model: { type: 'string', description: 'Modelo do veículo' },
+        brand: { type: 'string', description: 'Marca do veículo (ex: Fiat, Volkswagen)' },
+        model: { type: 'string', description: 'Modelo do veículo (ex: Uno, Gol)' },
         year: { type: 'number', description: 'Ano do veículo (opcional)' },
       },
       required: ['plate', 'brand', 'model'],
@@ -40,25 +43,26 @@ const AGENT_TOOLS: AITool[] = [
   },
   {
     name: 'create_appointment',
-    description: 'Cria um agendamento no sistema e no Google Calendar.',
+    description:
+      'Cria o agendamento no sistema e no Google Calendar. Use SOMENTE após o cliente confirmar explicitamente (responder "Sim" ou equivalente) o resumo do agendamento.',
     input_schema: {
       type: 'object',
       properties: {
         vehicle_id: { type: 'string', description: 'ID do veículo retornado por find_or_create_vehicle' },
         service_name: { type: 'string', description: 'Nome do serviço desejado' },
-        slot_start: { type: 'string', description: 'Data/hora de início em ISO 8601 (ex: 2024-07-15T10:00:00)' },
+        slot_start: { type: 'string', description: 'Data/hora de início em ISO 8601 (ex: 2026-07-15T10:00:00.000Z)' },
       },
       required: ['vehicle_id', 'service_name', 'slot_start'],
     },
   },
   {
     name: 'reschedule_appointment',
-    description: 'Remarca um agendamento existente para um novo horário.',
+    description: 'Remarca um agendamento existente para uma nova data/horário.',
     input_schema: {
       type: 'object',
       properties: {
         appointment_id: { type: 'string', description: 'ID do agendamento a remarcar' },
-        slot_start: { type: 'string', description: 'Nova data/hora de início em ISO 8601' },
+        slot_start: { type: 'string', description: 'Nova data/hora em ISO 8601' },
       },
       required: ['appointment_id', 'slot_start'],
     },
@@ -76,7 +80,7 @@ const AGENT_TOOLS: AITool[] = [
   },
   {
     name: 'transfer_to_human',
-    description: 'Registra a transferência para atendimento humano e encerra o loop do agente.',
+    description: 'Transfere o atendimento para um humano e encerra o loop do agente.',
     input_schema: {
       type: 'object',
       properties: {
@@ -108,21 +112,17 @@ export interface AgentResult {
 export class AgentService {
   constructor(private readonly deps: AgentDeps) {}
 
-  async processMessage(
-    customerId: string,
-    conversationId: string,
-    isNewCustomer: boolean,
-  ): Promise<AgentResult> {
+  async processMessage(customerId: string, conversationId: string): Promise<AgentResult> {
     const { aiService, calendarService, customerRepo, vehicleRepo, serviceRepo,
             appointmentRepo, conversationRepo, settingsRepo, ragService } = this.deps
 
     const [ragCtx, messages, settings] = await Promise.all([
       ragService.buildContext(customerId),
-      conversationRepo.getMessages(conversationId, 30),
+      conversationRepo.getMessages(conversationId, 40),
       settingsRepo.get(),
     ])
 
-    const systemPrompt = ragService.buildSystemPrompt(ragCtx, isNewCustomer)
+    const systemPrompt = ragService.buildSystemPrompt(ragCtx)
 
     const history = messages
       .filter((m) => m.sender !== 'system')
@@ -192,22 +192,41 @@ export class AgentService {
     const { customerId, settings, calendarService, vehicleRepo, serviceRepo, appointmentRepo } = ctx
 
     switch (name) {
-      case 'get_available_slots': {
-        const daysAhead = (input.days_ahead as number) ?? 7
-        const from = new Date()
-        const to = new Date()
-        to.setDate(to.getDate() + daysAhead)
+      case 'get_slots_for_date': {
+        const dateStr = input.date as string
 
-        const slots = await calendarService.getAvailableSlots(from, to, settings.slotDurationMinutes, settings)
+        const startOfDay = new Date(`${dateStr}T00:00:00-03:00`)
+        const endOfDay = new Date(`${dateStr}T23:59:59-03:00`)
 
-        if (slots.length === 0) return 'Nenhum horário disponível nos próximos dias.'
+        // Para hoje, começa do momento atual
+        const now = new Date()
+        const from = startOfDay < now ? now : startOfDay
 
-        const slotList = slots
-          .slice(0, 8)
-          .map((s, i) => `${i + 1}. ${s.label} [${s.start.toISOString()}]`)
-          .join('\n')
+        if (from >= endOfDay) {
+          return 'Não há mais horários disponíveis para hoje. Por favor, informe outra data.'
+        }
 
-        return `Horários disponíveis:\n${slotList}`
+        const slots = await calendarService.getAvailableSlots(from, endOfDay, settings.slotDurationMinutes, settings)
+
+        if (slots.length === 0) {
+          const [year, month, day] = dateStr.split('-')
+          return `Não há horários disponíveis em ${day}/${month}/${year}. Gostaria de verificar outro dia?`
+        }
+
+        const dateLabel = startOfDay.toLocaleDateString('pt-BR', {
+          weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
+          timeZone: 'America/Sao_Paulo',
+        })
+
+        const slotLines = slots.map((s) => {
+          const time = s.start.toLocaleTimeString('pt-BR', {
+            hour: '2-digit', minute: '2-digit',
+            timeZone: 'America/Sao_Paulo',
+          })
+          return `${time} [${s.start.toISOString()}]`
+        }).join('\n')
+
+        return `Horários disponíveis para ${dateLabel}:\n${slotLines}\n\nInstrução: mostre ao cliente apenas os horários (HH:MM), sem os colchetes. Use os valores entre colchetes internamente para criar o agendamento.`
       }
 
       case 'find_or_create_vehicle': {
@@ -216,11 +235,12 @@ export class AgentService {
 
         if (existing) {
           return JSON.stringify({
-            found: true,
+            action: 'found',
             vehicle_id: existing.id,
             brand: existing.brand,
             model: existing.model,
             plate: existing.plate,
+            year: existing.year ?? null,
           })
         }
 
@@ -233,11 +253,12 @@ export class AgentService {
         })
 
         return JSON.stringify({
-          found: false,
+          action: 'created',
           vehicle_id: vehicle.id,
           brand: vehicle.brand,
           model: vehicle.model,
           plate: vehicle.plate,
+          year: vehicle.year ?? null,
         })
       }
 
@@ -282,11 +303,16 @@ export class AgentService {
           calendarSyncError: syncError ?? null,
         })
 
+        const dateFormatted = slotStart.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
+        const timeFormatted = slotStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+
         return JSON.stringify({
           appointment_id: appointment.id,
           service: service.name,
-          vehicle: `${vehicle.brand} ${vehicle.model} | ${vehicle.plate}`,
-          date: slotStart.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+          vehicle: `${vehicle.brand} ${vehicle.model}`,
+          plate: vehicle.plate,
+          date: dateFormatted,
+          time: timeFormatted,
           calendar_synced: !syncError,
         })
       }
@@ -306,12 +332,12 @@ export class AgentService {
           }
         }
 
-        await appointmentRepo.update(appointment.id, {
-          appointmentDate: newStart,
-          status: 'RESCHEDULED',
-        })
+        await appointmentRepo.update(appointment.id, { appointmentDate: newStart, status: 'RESCHEDULED' })
 
-        return `Agendamento remarcado para ${newStart.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+        const dateFormatted = newStart.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
+        const timeFormatted = newStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+
+        return `Agendamento remarcado com sucesso para ${dateFormatted} às ${timeFormatted}.`
       }
 
       case 'cancel_appointment': {
@@ -333,7 +359,7 @@ export class AgentService {
       case 'transfer_to_human': {
         const reason = (input.reason as string) ?? 'Solicitação do cliente'
         await ctx.conversationRepo.updateStatus(ctx.conversationId, 'TRANSFERRED', reason)
-        return `Em breve um de nossos atendentes entrará em contato. Motivo: ${reason}`
+        return `Certo! Em breve um de nossos atendentes entrará em contato. 😊`
       }
 
       default:

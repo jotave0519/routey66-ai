@@ -18,41 +18,54 @@ export class HandleIncomingMessage {
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
-    const { phone, text, whatsappName } = input
+    const { phone, text } = input
 
     await this.messagingService.sendTyping(phone)
 
+    // Busca ou cria cliente SEM usar nome do WhatsApp
     let customer = await this.customerRepo.findByPhone(phone)
-    let isNewCustomer = false
-
     if (!customer) {
-      isNewCustomer = true
-      customer = await this.customerRepo.create({
-        name: whatsappName ?? 'Novo cliente',
-        phone,
-        whatsappName: whatsappName ?? null,
-      })
-    } else if (whatsappName && customer.whatsappName !== whatsappName) {
-      await this.customerRepo.update(customer.id, { whatsappName })
+      customer = await this.customerRepo.create({ name: '', phone, whatsappName: null })
     }
 
+    // Garante conversa ativa
     let conversation = await this.conversationRepo.findActiveByCustomerId(customer.id)
-
     if (!conversation) {
       conversation = await this.conversationRepo.create(customer.id)
     }
 
+    // Salva mensagem do cliente
     await this.conversationRepo.saveMessage({
       conversationId: conversation.id,
       sender: 'customer',
       content: text,
     })
 
-    const result = await this.agentService.processMessage(
-      customer.id,
-      conversation.id,
-      isNewCustomer,
-    )
+    // Fase de coleta de nome: se cliente não tem nome, trata antes do agente
+    if (!customer.name || customer.name.trim() === '') {
+      const priorMessages = await this.conversationRepo.getMessages(conversation.id, 20)
+      const alreadyAskedName = priorMessages.some((m) => m.sender === 'assistant')
+
+      if (!alreadyAskedName) {
+        // Primeira mensagem — pede o nome
+        const greeting =
+          'Olá! Seja bem-vindo à Route\'y 66. 😊\n\nAntes de começarmos, como posso te chamar?'
+        await this.conversationRepo.saveMessage({
+          conversationId: conversation.id,
+          sender: 'assistant',
+          content: greeting,
+        })
+        await this.messagingService.sendText(phone, greeting)
+        return
+      }
+
+      // Segunda mensagem — o texto é o nome do cliente
+      const name = text.trim()
+      customer = await this.customerRepo.update(customer.id, { name })
+    }
+
+    // Processa com o agente
+    const result = await this.agentService.processMessage(customer.id, conversation.id)
 
     if (result.reply) {
       await this.conversationRepo.saveMessage({
@@ -60,16 +73,11 @@ export class HandleIncomingMessage {
         sender: 'assistant',
         content: result.reply,
       })
-
       await this.messagingService.sendText(phone, result.reply)
     }
 
     if (result.transferredToHuman) {
-      await this.conversationRepo.updateStatus(
-        conversation.id,
-        'TRANSFERRED',
-        result.transferReason,
-      )
+      await this.conversationRepo.updateStatus(conversation.id, 'TRANSFERRED', result.transferReason)
     }
   }
 }

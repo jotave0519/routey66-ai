@@ -98,6 +98,7 @@ export class AppointmentRepository implements IAppointmentRepository {
         appointment_date: data.appointmentDate.toISOString(),
         status: data.status,
         notes: data.notes ?? null,
+        calendar_sync_error: data.calendarSyncError ?? null,
       })
       .select()
       .single()
