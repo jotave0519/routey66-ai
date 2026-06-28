@@ -29,6 +29,7 @@ export async function buildServer(deps: ServerDeps) {
   await fastify.register(cors, { origin: true })
   await fastify.register(sensible)
 
+  fastify.get('/', async () => ({ status: 'ok' }))
   fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
 
   webhookRoutes(fastify, deps.webhookController)
