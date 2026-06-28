@@ -1,0 +1,38 @@
+# Dependências
+node_modules/
+admin/node_modules/
+admin/.next/
+
+# Build
+dist/
+.next/
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Temporários
+.tmp/
+*.log
+logs/
+
+# Google OAuth
+credentials.json
+token.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testes
+coverage/
+
+# Python (legado)
+__pycache__/
+*.pyc

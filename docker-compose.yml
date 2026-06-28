@@ -1,0 +1,45 @@
+version: '3.9'
+
+services:
+  # ── Agente WhatsApp (backend) ──────────────────────────────
+  api:
+    build: .
+    container_name: routey66-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file: .env
+    depends_on:
+      - evolution
+
+  # ── Painel Administrativo ──────────────────────────────────
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    container_name: routey66-admin
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    env_file: .env
+
+  # ── Evolution API (WhatsApp) ───────────────────────────────
+  evolution:
+    image: atendai/evolution-api:latest
+    container_name: evolution-api
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    environment:
+      SERVER_PORT: 8080
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      QRCODE_LIMIT: 30
+      LANGUAGE: pt-BR
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+
+volumes:
+  evolution_instances:
+  evolution_store:
