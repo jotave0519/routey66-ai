@@ -58,18 +58,29 @@ export class GoogleCalendarService implements ICalendarService {
     slotMinutes: number,
     settings?: BusinessSettings,
   ): Promise<CalendarSlot[]> {
+    console.log(`[Calendar] freebusy query: ${from.toISOString()} → ${to.toISOString()}`)
+
     const { data } = await this.calendar.freebusy.query({
       requestBody: {
         timeMin: from.toISOString(),
         timeMax: to.toISOString(),
+        timeZone: 'America/Sao_Paulo',
         items: [{ id: this.calendarId }],
       },
     })
 
-    const busy = (data.calendars?.[this.calendarId]?.busy ?? []).map((b) => ({
+    const calData = data.calendars?.[this.calendarId]
+
+    if (calData?.errors?.length) {
+      console.error('[Calendar] freebusy errors:', JSON.stringify(calData.errors))
+    }
+
+    const busy = (calData?.busy ?? []).map((b) => ({
       start: new Date(b.start!),
       end: new Date(b.end!),
     }))
+
+    console.log(`[Calendar] busy periods (${busy.length}):`, busy.map((b) => `${b.start.toISOString()}–${b.end.toISOString()}`).join(', ') || 'none')
 
     const slots: CalendarSlot[] = []
     const openingHours = settings?.openingHours
@@ -117,6 +128,8 @@ export class GoogleCalendarService implements ICalendarService {
   }
 
   async createEvent(input: CreateEventInput): Promise<string> {
+    console.log(`[Calendar] createEvent: "${input.title}" ${input.start.toISOString()}–${input.end.toISOString()}`)
+
     const { data } = await this.calendar.events.insert({
       calendarId: this.calendarId,
       requestBody: {
@@ -124,10 +137,13 @@ export class GoogleCalendarService implements ICalendarService {
         description: input.description,
         start: { dateTime: input.start.toISOString(), timeZone: 'America/Sao_Paulo' },
         end: { dateTime: input.end.toISOString(), timeZone: 'America/Sao_Paulo' },
+        transparency: 'opaque', // marks slot as busy in freebusy queries
+        status: 'confirmed',
       },
     })
 
     if (!data.id) throw new Error('Google Calendar did not return an event ID')
+    console.log(`[Calendar] event created: ${data.id}`)
     return data.id
   }
 
