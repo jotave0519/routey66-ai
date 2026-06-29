@@ -7,6 +7,11 @@ import {
 import { HandleIncomingMessage } from '../../../application/usecases/HandleIncomingMessage'
 
 export class WebhookController {
+  // Serializes processing per phone number so concurrent webhook deliveries
+  // for the same conversation never interleave (Claude's API requires the
+  // history to end with a "user" message; interleaving breaks that).
+  private readonly phoneQueues = new Map<string, Promise<void>>()
+
   constructor(private readonly handleIncomingMessage: HandleIncomingMessage) {}
 
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -41,16 +46,21 @@ export class WebhookController {
 
     reply.code(200).send({ status: 'processing' })
 
-    setImmediate(async () => {
-      try {
-        await this.handleIncomingMessage.execute({
-          phone,
-          text,
-          whatsappName: payload.data.pushName,
-        })
-      } catch (err) {
-        console.error('[WebhookController] Error processing message:', err)
-      }
+    const previous = this.phoneQueues.get(phone) ?? Promise.resolve()
+
+    const next = previous.catch(() => {}).then(() =>
+      this.handleIncomingMessage.execute({
+        phone,
+        text,
+        whatsappName: payload.data.pushName,
+      }),
+    ).catch((err) => {
+      console.error('[WebhookController] Error processing message:', err)
+    })
+
+    this.phoneQueues.set(phone, next)
+    next.finally(() => {
+      if (this.phoneQueues.get(phone) === next) this.phoneQueues.delete(phone)
     })
   }
 }

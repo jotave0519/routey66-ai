@@ -65,7 +65,20 @@ export class HandleIncomingMessage {
     }
 
     // Processa com o agente
-    const result = await this.agentService.processMessage(customer.id, conversation.id)
+    let result
+    try {
+      result = await this.agentService.processMessage(customer.id, conversation.id)
+    } catch (err) {
+      console.error('[HandleIncomingMessage] AgentService error:', err)
+      const fallback = 'Desculpe, tive um problema para processar sua mensagem agora. Pode repetir, por favor?'
+      await this.conversationRepo.saveMessage({
+        conversationId: conversation.id,
+        sender: 'assistant',
+        content: fallback,
+      })
+      await this.messagingService.sendText(phone, fallback)
+      return
+    }
 
     if (result.reply) {
       await this.conversationRepo.saveMessage({

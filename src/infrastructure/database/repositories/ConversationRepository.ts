@@ -90,15 +90,18 @@ export class ConversationRepository implements IConversationRepository {
   }
 
   async getMessages(conversationId: string, limit = 30): Promise<Message[]> {
+    // Fetch the most recent `limit` messages (descending), then reverse to
+    // chronological order — using ascending+limit would instead return the
+    // OLDEST messages once the conversation exceeds the limit.
     const { data, error } = await this.db
       .from('messages')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(limit)
 
     if (error) throw new Error(`ConversationRepository.getMessages: ${error.message}`)
-    return (data ?? []).map(toMessage)
+    return (data ?? []).map(toMessage).reverse()
   }
 
   async saveMessage(data: Omit<Message, 'id' | 'createdAt'>): Promise<Message> {
