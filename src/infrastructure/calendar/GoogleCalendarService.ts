@@ -4,22 +4,20 @@ import * as path from 'path'
 import { ICalendarService, CalendarSlot, CreateEventInput } from '../../domain/services/ICalendarService'
 import { BusinessSettings } from '../../domain/entities/BusinessSettings'
 
-const PT_DAYS: Record<string, string> = {
-  monday: 'segunda', tuesday: 'terça', wednesday: 'quarta',
-  thursday: 'quinta', friday: 'sexta', saturday: 'sábado', sunday: 'domingo',
-}
-
 const DAY_MAP: Record<number, string> = {
   0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday',
   4: 'thursday', 5: 'friday', 6: 'saturday',
 }
 
-function formatLabel(date: Date): string {
-  const day = DAY_MAP[date.getDay()]
-  const ptDay = PT_DAYS[day] ?? day
-  const datePart = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-  const timePart = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  return `${ptDay.charAt(0).toUpperCase() + ptDay.slice(1)}, ${datePart} às ${timePart}`
+// Returns "YYYY-MM-DD" in Brazil timezone regardless of server timezone
+function toBRTDateStr(date: Date): string {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+}
+
+// Returns the JS day-of-week (0=Sun) for a given date interpreted in BRT
+function getBRTDayOfWeek(date: Date): number {
+  const iso = toBRTDateStr(date)
+  return new Date(`${iso}T12:00:00-03:00`).getDay()
 }
 
 function buildAuth() {
@@ -74,44 +72,45 @@ export class GoogleCalendarService implements ICalendarService {
     }))
 
     const slots: CalendarSlot[] = []
-    const cursor = new Date(from)
     const openingHours = settings?.openingHours
 
+    // Iterate day by day within [from, to] using BRT dates
+    const cursor = new Date(from)
+
     while (cursor < to) {
-      const dayKey = DAY_MAP[cursor.getDay()]
+      const dateStrBRT = toBRTDateStr(cursor)
+      const dayKey = DAY_MAP[getBRTDayOfWeek(cursor)]
       const dayHours = openingHours?.[dayKey as keyof typeof openingHours]
 
       if (dayHours) {
-        const [openH, openM] = dayHours.open.split(':').map(Number)
-        const [closeH, closeM] = dayHours.close.split(':').map(Number)
+        // Build open/close times explicitly in BRT (-03:00) — never uses server TZ
+        const dayOpen = new Date(`${dateStrBRT}T${dayHours.open}:00-03:00`)
+        const dayClose = new Date(`${dateStrBRT}T${dayHours.close}:00-03:00`)
 
-        const dayOpen = new Date(cursor)
-        dayOpen.setHours(openH, openM, 0, 0)
-
-        const dayClose = new Date(cursor)
-        dayClose.setHours(closeH, closeM, 0, 0)
-
-        const slotStart = cursor < dayOpen ? new Date(dayOpen) : new Date(cursor)
+        // Generate slots aligned to the schedule grid starting at dayOpen
+        const slotStart = new Date(dayOpen)
 
         while (slotStart < dayClose) {
           const slotEnd = new Date(slotStart.getTime() + slotMinutes * 60_000)
           if (slotEnd > dayClose) break
 
-          const overlaps = busy.some((b) => slotStart < b.end && slotEnd > b.start)
-          if (!overlaps) {
-            slots.push({
-              start: new Date(slotStart),
-              end: new Date(slotEnd),
-              label: formatLabel(slotStart),
-            })
+          // Only offer slots that start at or after `from` (skip past slots for today)
+          if (slotStart >= from) {
+            const overlaps = busy.some((b) => slotStart < b.end && slotEnd > b.start)
+            if (!overlaps) {
+              slots.push({ start: new Date(slotStart), end: new Date(slotEnd) })
+            }
           }
 
           slotStart.setTime(slotStart.getTime() + slotMinutes * 60_000)
         }
       }
 
-      cursor.setDate(cursor.getDate() + 1)
-      cursor.setHours(0, 0, 0, 0)
+      // Advance to midnight BRT of the next day
+      const nextDateStr = new Date(`${dateStrBRT}T00:00:00-03:00`)
+      nextDateStr.setDate(nextDateStr.getDate() + 1)
+      const nextDayBRT = toBRTDateStr(nextDateStr)
+      cursor.setTime(new Date(`${nextDayBRT}T00:00:00-03:00`).getTime())
     }
 
     return slots

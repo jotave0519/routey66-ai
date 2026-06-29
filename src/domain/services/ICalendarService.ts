@@ -1,7 +1,6 @@
 export interface CalendarSlot {
   start: Date
   end: Date
-  label: string  // "Segunda, 14/07 às 10:00"
 }
 
 export interface CreateEventInput {

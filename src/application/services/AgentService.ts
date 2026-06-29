@@ -274,9 +274,8 @@ export class AgentService {
 
         const customer = await ctx.customerRepo.findById(customerId)
 
-        let googleEventId: string | undefined
-        let syncError: string | undefined
-
+        // Google Calendar é obrigatório — sem evento confirmado, não cria o agendamento
+        let googleEventId: string
         try {
           googleEventId = await calendarService.createEvent({
             title: `${service.name} — ${customer?.name ?? 'Cliente'}`,
@@ -289,18 +288,19 @@ export class AgentService {
             end: slotEnd,
           })
         } catch (err) {
-          syncError = err instanceof Error ? err.message : String(err)
-          console.error('Google Calendar sync error:', syncError)
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error('[create_appointment] Google Calendar error:', msg)
+          return `Não foi possível confirmar o agendamento pois ocorreu um erro ao reservar o horário na agenda. Por favor, tente novamente em alguns instantes ou entre em contato com a oficina.`
         }
 
         const appointment = await appointmentRepo.create({
           customerId,
           vehicleId: vehicle.id,
           serviceId: service.id,
-          googleEventId: googleEventId ?? null,
+          googleEventId,
           appointmentDate: slotStart,
           status: 'SCHEDULED',
-          calendarSyncError: syncError ?? null,
+          calendarSyncError: null,
         })
 
         const dateFormatted = slotStart.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -313,7 +313,6 @@ export class AgentService {
           plate: vehicle.plate,
           date: dateFormatted,
           time: timeFormatted,
-          calendar_synced: !syncError,
         })
       }
 
@@ -328,7 +327,9 @@ export class AgentService {
           try {
             await calendarService.updateEvent(appointment.googleEventId, { start: newStart, end: newEnd })
           } catch (err) {
-            console.error('Calendar update error:', err)
+            const msg = err instanceof Error ? err.message : String(err)
+            console.error('[reschedule_appointment] Calendar update error:', msg)
+            return `Não foi possível remarcar pois ocorreu um erro ao atualizar a agenda. Por favor, tente novamente ou entre em contato com a oficina.`
           }
         }
 
