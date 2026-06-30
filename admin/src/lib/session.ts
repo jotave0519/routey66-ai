@@ -24,10 +24,10 @@ function toHex(buf: ArrayBuffer): string {
     .join('')
 }
 
-function fromHex(hex: string): Uint8Array {
+function fromHex(hex: string): ArrayBuffer {
   const pairs = hex.match(/.{2}/g)
-  if (!pairs) return new Uint8Array()
-  return Uint8Array.from(pairs.map((h) => parseInt(h, 16)))
+  if (!pairs) return new ArrayBuffer(0)
+  return Uint8Array.from(pairs.map((h) => parseInt(h, 16))).buffer as ArrayBuffer
 }
 
 export async function createSessionToken(): Promise<string> {
