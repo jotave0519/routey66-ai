@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { Conversation, ConversationStatus } from '../../../domain/entities/Conversation'
 import { Message } from '../../../domain/entities/Message'
-import { IConversationRepository } from '../../../domain/repositories/IConversationRepository'
+import { IConversationRepository, ExpiredTimeout } from '../../../domain/repositories/IConversationRepository'
 import { getSupabaseClient } from '../SupabaseClient'
 
 function toConversation(row: Record<string, unknown>): Conversation {
@@ -12,6 +12,8 @@ function toConversation(row: Record<string, unknown>): Conversation {
     transferReason: (row.transfer_reason as string) ?? null,
     startedAt: new Date(row.started_at as string),
     finishedAt: row.finished_at ? new Date(row.finished_at as string) : null,
+    timeoutAt: row.timeout_at ? new Date(row.timeout_at as string) : null,
+    timeoutWarned: (row.timeout_warned as boolean) ?? false,
   }
 }
 
@@ -128,5 +130,30 @@ export class ConversationRepository implements IConversationRepository {
 
     if (error) throw new Error(`ConversationRepository.list: ${error.message}`)
     return (data ?? []).map(toConversation)
+  }
+
+  async setTimeoutAt(id: string, at: Date | null, warned = false): Promise<void> {
+    const { error } = await this.db
+      .from('conversations')
+      .update({ timeout_at: at?.toISOString() ?? null, timeout_warned: warned })
+      .eq('id', id)
+
+    if (error) throw new Error(`ConversationRepository.setTimeoutAt: ${error.message}`)
+  }
+
+  async findExpiredTimeouts(): Promise<ExpiredTimeout[]> {
+    const { data, error } = await this.db
+      .from('conversations')
+      .select('id, customer_id, timeout_warned')
+      .eq('status', 'ACTIVE')
+      .not('timeout_at', 'is', null)
+      .lte('timeout_at', new Date().toISOString())
+
+    if (error) throw new Error(`ConversationRepository.findExpiredTimeouts: ${error.message}`)
+    return (data ?? []).map((r) => ({
+      conversationId: r.id as string,
+      customerId: r.customer_id as string,
+      timeoutWarned: r.timeout_warned as boolean,
+    }))
   }
 }

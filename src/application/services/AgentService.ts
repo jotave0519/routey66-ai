@@ -109,6 +109,12 @@ export interface AgentResult {
   reply: string
   transferredToHuman: boolean
   transferReason?: string
+  completed: boolean  // true = flow finished, caller should not start timeout
+}
+
+interface ToolResult {
+  result: string
+  completed: boolean
 }
 
 export class AgentService {
@@ -137,6 +143,7 @@ export class AgentService {
     let finalReply = ''
     let transferredToHuman = false
     let transferReason: string | undefined
+    let flowCompleted = false
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       const response = await aiService.chat({ systemPrompt, history: currentHistory }, AGENT_TOOLS)
@@ -148,11 +155,13 @@ export class AgentService {
       const toolResults: string[] = []
 
       for (const call of response.toolCalls) {
-        const result = await this.executeTool(call.name, call.input, {
+        const { result, completed } = await this.executeTool(call.name, call.input, {
           customerId, conversationId, settings,
           calendarService, customerRepo, vehicleRepo,
           serviceRepo, appointmentRepo, conversationRepo,
         })
+
+        if (completed) flowCompleted = true
 
         if (call.name === 'transfer_to_human') {
           transferredToHuman = true
@@ -173,7 +182,7 @@ export class AgentService {
       ]
     }
 
-    return { reply: finalReply, transferredToHuman, transferReason }
+    return { reply: finalReply, transferredToHuman, transferReason, completed: flowCompleted }
   }
 
   private async executeTool(
@@ -190,7 +199,7 @@ export class AgentService {
       appointmentRepo: IAppointmentRepository
       conversationRepo: IConversationRepository
     },
-  ): Promise<string> {
+  ): Promise<ToolResult> {
     const { customerId, settings, calendarService, vehicleRepo, serviceRepo, appointmentRepo } = ctx
 
     switch (name) {
@@ -205,14 +214,14 @@ export class AgentService {
         const from = startOfDay < now ? now : startOfDay
 
         if (from >= endOfDay) {
-          return 'Não há mais horários disponíveis para hoje. Por favor, informe outra data.'
+          return { result: 'Não há mais horários disponíveis para hoje. Por favor, informe outra data.', completed: false }
         }
 
         const slots = await calendarService.getAvailableSlots(from, endOfDay, settings.slotDurationMinutes, settings)
 
         if (slots.length === 0) {
           const [year, month, day] = dateStr.split('-')
-          return `Não há horários disponíveis em ${day}/${month}/${year}. Gostaria de verificar outro dia?`
+          return { result: `Não há horários disponíveis em ${day}/${month}/${year}. Gostaria de verificar outro dia?`, completed: false }
         }
 
         const dateLabel = startOfDay.toLocaleDateString('pt-BR', {
@@ -227,7 +236,7 @@ export class AgentService {
           }),
         ).join('\n')
 
-        return `Horários disponíveis para ${dateLabel}:\n${slotLines}\n\nInstrução: ao criar o agendamento, passe exatamente a data "${dateStr}" e o horário escolhido pelo cliente no formato HH:MM, sem qualquer conversão.`
+        return { result: `Horários disponíveis para ${dateLabel}:\n${slotLines}\n\nInstrução: ao criar o agendamento, passe exatamente a data "${dateStr}" e o horário escolhido pelo cliente no formato HH:MM, sem qualquer conversão.`, completed: false }
       }
 
       case 'find_or_create_vehicle': {
@@ -235,14 +244,14 @@ export class AgentService {
         const existing = await vehicleRepo.findByPlateAndCustomer(plate, customerId)
 
         if (existing) {
-          return JSON.stringify({
+          return { result: JSON.stringify({
             action: 'found',
             vehicle_id: existing.id,
             brand: existing.brand,
             model: existing.model,
             plate: existing.plate,
             year: existing.year ?? null,
-          })
+          }), completed: false }
         }
 
         const vehicle = await vehicleRepo.create({
@@ -253,19 +262,19 @@ export class AgentService {
           year: (input.year as number) ?? null,
         })
 
-        return JSON.stringify({
+        return { result: JSON.stringify({
           action: 'created',
           vehicle_id: vehicle.id,
           brand: vehicle.brand,
           model: vehicle.model,
           plate: vehicle.plate,
           year: vehicle.year ?? null,
-        })
+        }), completed: false }
       }
 
       case 'create_appointment': {
         const service = await serviceRepo.findByName(input.service_name as string)
-        if (!service) return `Serviço "${input.service_name}" não encontrado.`
+        if (!service) return { result: `Serviço "${input.service_name}" não encontrado.`, completed: false }
 
         // Build slot time explicitly in BRT (-03:00) — the LLM provides human-readable
         // date+time so the server owns the timezone conversion, never the model.
@@ -276,7 +285,7 @@ export class AgentService {
         console.log(`[create_appointment] slotStart UTC=${slotStart.toISOString()} BRT=${slotStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`)
 
         const vehicle = await vehicleRepo.findById(input.vehicle_id as string)
-        if (!vehicle) return 'Veículo não encontrado.'
+        if (!vehicle) return { result: 'Veículo não encontrado.', completed: false }
 
         const customer = await ctx.customerRepo.findById(customerId)
 
@@ -296,7 +305,7 @@ export class AgentService {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           console.error('[create_appointment] Google Calendar error:', msg)
-          return `Não foi possível confirmar o agendamento pois ocorreu um erro ao reservar o horário na agenda. Por favor, tente novamente em alguns instantes ou entre em contato com a oficina.`
+          return { result: `Não foi possível confirmar o agendamento pois ocorreu um erro ao reservar o horário na agenda. Por favor, tente novamente em alguns instantes ou entre em contato com a oficina.`, completed: false }
         }
 
         const appointment = await appointmentRepo.create({
@@ -312,19 +321,19 @@ export class AgentService {
         const dateFormatted = slotStart.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
         const timeFormatted = slotStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
 
-        return JSON.stringify({
+        return { result: JSON.stringify({
           appointment_id: appointment.id,
           service: service.name,
           vehicle: `${vehicle.brand} ${vehicle.model}`,
           plate: vehicle.plate,
           date: dateFormatted,
           time: timeFormatted,
-        })
+        }), completed: true }
       }
 
       case 'reschedule_appointment': {
         const appointment = await appointmentRepo.findById(input.appointment_id as string)
-        if (!appointment) return 'Agendamento não encontrado.'
+        if (!appointment) return { result: 'Agendamento não encontrado.', completed: false }
 
         const newStart = new Date(`${input.date as string}T${input.time as string}:00-03:00`)
         const newEnd = new Date(newStart.getTime() + settings.slotDurationMinutes * 60_000)
@@ -338,7 +347,7 @@ export class AgentService {
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             console.error('[reschedule_appointment] Calendar update error:', msg)
-            return `Não foi possível remarcar pois ocorreu um erro ao atualizar a agenda. Por favor, tente novamente ou entre em contato com a oficina.`
+            return { result: `Não foi possível remarcar pois ocorreu um erro ao atualizar a agenda. Por favor, tente novamente ou entre em contato com a oficina.`, completed: false }
           }
         }
 
@@ -347,12 +356,12 @@ export class AgentService {
         const dateFormatted = newStart.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
         const timeFormatted = newStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
 
-        return `Agendamento remarcado com sucesso para ${dateFormatted} às ${timeFormatted}.`
+        return { result: `Agendamento remarcado com sucesso para ${dateFormatted} às ${timeFormatted}.`, completed: true }
       }
 
       case 'cancel_appointment': {
         const appointment = await appointmentRepo.findById(input.appointment_id as string)
-        if (!appointment) return 'Agendamento não encontrado.'
+        if (!appointment) return { result: 'Agendamento não encontrado.', completed: false }
 
         if (appointment.googleEventId) {
           try {
@@ -363,17 +372,17 @@ export class AgentService {
         }
 
         await appointmentRepo.updateStatus(appointment.id, 'CANCELLED')
-        return 'Agendamento cancelado com sucesso.'
+        return { result: 'Agendamento cancelado com sucesso.', completed: true }
       }
 
       case 'transfer_to_human': {
         const reason = (input.reason as string) ?? 'Solicitação do cliente'
         await ctx.conversationRepo.updateStatus(ctx.conversationId, 'TRANSFERRED', reason)
-        return `Certo! Em breve um de nossos atendentes entrará em contato. 😊`
+        return { result: `Certo! Em breve um de nossos atendentes entrará em contato. 😊`, completed: true }
       }
 
       default:
-        return `Ferramenta desconhecida: ${name}`
+        return { result: `Ferramenta desconhecida: ${name}`, completed: false }
     }
   }
 }

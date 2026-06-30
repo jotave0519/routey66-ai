@@ -7,4 +7,6 @@ export interface Conversation {
   transferReason?: string | null
   startedAt: Date
   finishedAt?: Date | null
+  timeoutAt: Date | null
+  timeoutWarned: boolean
 }

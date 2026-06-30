@@ -11,6 +11,8 @@ async function main() {
 
   await server.listen({ port, host })
   console.log(`🚀 Routey66 AI running at http://${host}:${port}`)
+
+  container.timeoutWorker.start()
 }
 
 main().catch((err) => {

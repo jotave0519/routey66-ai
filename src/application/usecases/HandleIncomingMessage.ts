@@ -41,6 +41,9 @@ export class HandleIncomingMessage {
       content: text,
     })
 
+    // Cancel any pending timeout immediately — client is active again
+    await this.conversationRepo.setTimeoutAt(conversation.id, null, false)
+
     // Fase de coleta de nome: se cliente não tem nome, trata antes do agente
     if (!customer.name || customer.name.trim() === '') {
       const priorMessages = await this.conversationRepo.getMessages(conversation.id, 20)
@@ -56,6 +59,8 @@ export class HandleIncomingMessage {
           content: greeting,
         })
         await this.messagingService.sendText(phone, greeting)
+        // Start timeout — client might not reply with their name
+        await this.conversationRepo.setTimeoutAt(conversation.id, new Date(Date.now() + 5 * 60_000))
         return
       }
 
@@ -91,6 +96,11 @@ export class HandleIncomingMessage {
 
     if (result.transferredToHuman) {
       await this.conversationRepo.updateStatus(conversation.id, 'TRANSFERRED', result.transferReason)
+    }
+
+    // Start inactivity timeout only for ongoing (non-completed) conversations
+    if (!result.completed && !result.transferredToHuman) {
+      await this.conversationRepo.setTimeoutAt(conversation.id, new Date(Date.now() + 5 * 60_000))
     }
   }
 }

@@ -14,6 +14,7 @@ import { ClaudeAIService } from './infrastructure/ai/ClaudeAIService'
 
 import { RAGService } from './application/services/RAGService'
 import { AgentService } from './application/services/AgentService'
+import { TimeoutWorker } from './application/services/TimeoutWorker'
 import { HandleIncomingMessage } from './application/usecases/HandleIncomingMessage'
 
 import { WebhookController } from './interfaces/http/controllers/WebhookController'
@@ -73,6 +74,9 @@ export function buildContainer() {
     agentService,
   )
 
+  // Background workers
+  const timeoutWorker = new TimeoutWorker(conversationRepo, customerRepo, messagingService)
+
   // Controllers
   const webhookController = new WebhookController(handleIncomingMessage)
   const servicesController = new ServicesController(serviceRepo)
@@ -97,5 +101,6 @@ export function buildContainer() {
     customersController,
     appointmentsController,
     settingsController,
+    timeoutWorker,
   }
 }
