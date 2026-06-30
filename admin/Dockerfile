@@ -1,10 +1,10 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY package*.json ./
+COPY admin/package*.json ./
 RUN npm ci
 
-COPY . .
+COPY admin/ .
 
 ARG NEXT_PUBLIC_API_URL
 ARG ADMIN_API_TOKEN
@@ -22,12 +22,12 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY package*.json ./
+COPY admin/package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY next.config.mjs ./
+COPY --from=builder /app/next.config.mjs ./
 
 EXPOSE 3001
 
