@@ -1,11 +1,10 @@
 'use client'
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { Icon, Btn } from '@/components/ui'
 
 function LoginForm() {
-  const router = useRouter()
   const params = useSearchParams()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -21,8 +20,7 @@ function LoginForm() {
       body: JSON.stringify({ password }),
     })
     if (res.ok) {
-      router.push(params.get('from') ?? '/')
-      router.refresh()
+      window.location.href = params.get('from') ?? '/'
     } else {
       const data = await res.json() as { error?: string }
       setError(data.error ?? 'Senha incorreta')

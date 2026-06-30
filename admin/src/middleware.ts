@@ -3,7 +3,7 @@ import { verifyToken, isSessionTokenExpired, SESSION_COOKIE } from './lib/sessio
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login']
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get(SESSION_COOKIE)?.value
 
-  if (!token || !verifyToken(token) || isSessionTokenExpired(token)) {
+  if (!token || isSessionTokenExpired(token) || !(await verifyToken(token))) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('from', pathname)
     return NextResponse.redirect(loginUrl)
