@@ -11,9 +11,56 @@ export class AppointmentsController {
   ) {}
 
   async list(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number }
+    const { limit = 500, offset = 0 } = request.query as { limit?: number; offset?: number }
     const appointments = await this.appointmentRepo.list(Number(limit), Number(offset))
-    reply.send(appointments)
+    reply.send({ data: appointments })
+  }
+
+  async getSlots(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { date } = request.query as { date?: string }
+    if (!date) { reply.code(400).send({ error: 'date is required (YYYY-MM-DD)' }); return }
+
+    const settings = await this.settingsRepo.get()
+    const from = new Date(`${date}T00:00:00-03:00`)
+    const to = new Date(`${date}T23:59:59-03:00`)
+    const slots = await this.calendarService.getAvailableSlots(from, to, settings.slotDurationMinutes, settings)
+    reply.send({ slots: slots.map((s) => ({ start: s.start.toISOString(), end: s.end.toISOString() })) })
+  }
+
+  async create(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { customerId, vehicleId, serviceId, appointmentDate, notes } = request.body as {
+      customerId: string; vehicleId: string; serviceId: string; appointmentDate: string; notes?: string
+    }
+    if (!customerId || !vehicleId || !serviceId || !appointmentDate) {
+      reply.code(400).send({ error: 'customerId, vehicleId, serviceId, appointmentDate are required' }); return
+    }
+
+    const settings = await this.settingsRepo.get()
+    const start = new Date(appointmentDate)
+    const end = new Date(start.getTime() + settings.slotDurationMinutes * 60_000)
+
+    let googleEventId: string | null = null
+    try {
+      googleEventId = await this.calendarService.createEvent({
+        title: 'Agendamento - Oficina',
+        description: notes ?? '',
+        start,
+        end,
+      })
+    } catch { /* calendar sync error is non-blocking */ }
+
+    const appointment = await this.appointmentRepo.create({
+      customerId,
+      vehicleId,
+      serviceId,
+      appointmentDate: start,
+      googleEventId,
+      status: 'SCHEDULED',
+      notes: notes ?? null,
+      calendarSyncError: null,
+    })
+
+    reply.code(201).send(appointment)
   }
 
   async cancel(request: FastifyRequest, reply: FastifyReply): Promise<void> {

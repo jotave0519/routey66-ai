@@ -49,6 +49,8 @@ export function adminRoutes(fastify: FastifyInstance, controllers: AdminControll
 
   // Appointments
   fastify.get('/admin/appointments', (req, reply) => controllers.appointments.list(req, reply))
+  fastify.get('/admin/appointments/slots', (req, reply) => controllers.appointments.getSlots(req, reply))
+  fastify.post('/admin/appointments', (req, reply) => controllers.appointments.create(req, reply))
   fastify.patch('/admin/appointments/:id/cancel', (req, reply) => controllers.appointments.cancel(req, reply))
   fastify.patch('/admin/appointments/:id/reschedule', (req, reply) => controllers.appointments.reschedule(req, reply))
 

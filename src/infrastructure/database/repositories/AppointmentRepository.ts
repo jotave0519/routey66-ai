@@ -9,7 +9,7 @@ import { getSupabaseClient } from '../SupabaseClient'
 
 const WITH_DETAILS = `
   *,
-  customers!inner(name),
+  customers!inner(name, phone),
   vehicles!inner(brand, model, plate),
   services!inner(name)
 `
@@ -37,6 +37,7 @@ function toAppointmentWithDetails(row: Record<string, unknown>): AppointmentWith
   return {
     ...toAppointment(row),
     customerName: customers?.name as string,
+    customerPhone: customers?.phone as string,
     vehicleBrand: vehicles?.brand as string,
     vehicleModel: vehicles?.model as string,
     vehiclePlate: vehicles?.plate as string,

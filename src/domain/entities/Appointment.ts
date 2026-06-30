@@ -16,6 +16,7 @@ export interface Appointment {
 
 export interface AppointmentWithDetails extends Appointment {
   customerName: string
+  customerPhone: string
   vehicleBrand: string
   vehicleModel: string
   vehiclePlate: string
