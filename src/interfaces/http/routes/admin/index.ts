@@ -5,6 +5,10 @@ import { FaqController } from '../../controllers/admin/FaqController'
 import { CustomersController } from '../../controllers/admin/CustomersController'
 import { AppointmentsController } from '../../controllers/admin/AppointmentsController'
 import { SettingsController } from '../../controllers/admin/SettingsController'
+import { VehiclesAdminController } from '../../controllers/admin/VehiclesAdminController'
+import { ConversationsAdminController } from '../../controllers/admin/ConversationsAdminController'
+import { DashboardController } from '../../controllers/admin/DashboardController'
+import { WhatsAppAdminController } from '../../controllers/admin/WhatsAppAdminController'
 
 interface AdminControllers {
   services: ServicesController
@@ -12,10 +16,17 @@ interface AdminControllers {
   customers: CustomersController
   appointments: AppointmentsController
   settings: SettingsController
+  vehicles: VehiclesAdminController
+  conversations: ConversationsAdminController
+  dashboard: DashboardController
+  whatsapp: WhatsAppAdminController
 }
 
 export function adminRoutes(fastify: FastifyInstance, controllers: AdminControllers): void {
   fastify.addHook('preHandler', adminAuthMiddleware)
+
+  // Dashboard
+  fastify.get('/admin/dashboard', (req, reply) => controllers.dashboard.stats(req, reply))
 
   // Services
   fastify.get('/admin/services', (req, reply) => controllers.services.list(req, reply))
@@ -32,12 +43,23 @@ export function adminRoutes(fastify: FastifyInstance, controllers: AdminControll
   fastify.get('/admin/customers', (req, reply) => controllers.customers.list(req, reply))
   fastify.get('/admin/customers/:id', (req, reply) => controllers.customers.getOne(req, reply))
 
+  // Vehicles
+  fastify.get('/admin/vehicles', (req, reply) => controllers.vehicles.list(req, reply))
+  fastify.get('/admin/vehicles/:id', (req, reply) => controllers.vehicles.getOne(req, reply))
+
   // Appointments
   fastify.get('/admin/appointments', (req, reply) => controllers.appointments.list(req, reply))
   fastify.patch('/admin/appointments/:id/cancel', (req, reply) => controllers.appointments.cancel(req, reply))
   fastify.patch('/admin/appointments/:id/reschedule', (req, reply) => controllers.appointments.reschedule(req, reply))
 
+  // Conversations
+  fastify.get('/admin/conversations', (req, reply) => controllers.conversations.list(req, reply))
+  fastify.get('/admin/conversations/:id/messages', (req, reply) => controllers.conversations.getMessages(req, reply))
+
   // Settings
   fastify.get('/admin/settings', (req, reply) => controllers.settings.get(req, reply))
   fastify.patch('/admin/settings', (req, reply) => controllers.settings.update(req, reply))
+
+  // WhatsApp status
+  fastify.get('/admin/whatsapp/status', (req, reply) => controllers.whatsapp.status(req, reply))
 }

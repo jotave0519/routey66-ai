@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import { Icon, Btn } from '@/components/ui'
 
 function LoginForm() {
   const router = useRouter()
@@ -14,58 +15,57 @@ function LoginForm() {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
-
     if (res.ok) {
       router.push(params.get('from') ?? '/')
       router.refresh()
     } else {
       const data = await res.json() as { error?: string }
-      setError(data.error ?? 'Erro ao fazer login')
+      setError(data.error ?? 'Senha incorreta')
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
-      <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-orange-600">Route&apos;y 66</h1>
-          <p className="text-gray-500 text-sm mt-1">Painel Administrativo</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sidebar-bg)' }}>
+      <div style={{ background: 'var(--card)', borderRadius: 16, padding: '40px 36px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ width: 48, height: 48, background: 'var(--primary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: 22, fontWeight: 700, color: '#fff' }}>R</div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Route&apos;y 66</h1>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Painel Administrativo</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Senha de acesso
-            </label>
-            <input
-              type="password"
-              className="border rounded-lg px-3 py-2.5 w-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoFocus
-            />
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Senha de acesso</label>
+            <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, padding: '0 12px', background: '#f9f9fb' }}>
+              <Icon name="lock" size={16} color="var(--muted)" style={{ marginRight: 8 }} />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                autoFocus
+                style={{ flex: 1, border: 'none', outline: 'none', padding: '10px 0', fontSize: 14, background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }}
+              />
+            </div>
           </div>
 
           {error && (
-            <p className="text-red-500 text-sm text-center">{error}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, fontSize: 12, color: '#dc2626' }}>
+              <Icon name="error" size={14} color="#dc2626" />
+              {error}
+            </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-orange-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 transition-colors"
-          >
+          <Btn type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '10px 14px', fontSize: 14 }}>
             {loading ? 'Entrando…' : 'Entrar'}
-          </button>
+          </Btn>
         </form>
       </div>
     </div>

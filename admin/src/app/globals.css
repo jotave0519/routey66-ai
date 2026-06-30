@@ -1,3 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300,0,0&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --border: #ededf0;
+  --text: #1a1a1e;
+  --muted: #71717a;
+  --subtle: #9a9aa2;
+  --primary: #e5484d;
+  --primary-hover: #c93c40;
+  --sidebar-bg: #1a1a1e;
+  --sidebar-text: #ededf0;
+  --green: #1f8a5b;
+  --green-bg: #e9f9f0;
+  --blue: #1d4ed8;
+  --blue-bg: #eff6ff;
+  --orange-c: #c2410c;
+  --orange-bg: #fff7ed;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.icon {
+  font-family: 'Material Symbols Rounded';
+  font-weight: 300;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--subtle); }

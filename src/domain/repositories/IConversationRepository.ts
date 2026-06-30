@@ -7,6 +7,13 @@ export interface ExpiredTimeout {
   timeoutWarned: boolean
 }
 
+export interface ConversationWithCustomer extends Conversation {
+  customerName: string
+  customerPhone: string
+  lastMessage: string | null
+  lastMessageAt: Date | null
+}
+
 export interface IConversationRepository {
   findActiveByCustomerId(customerId: string): Promise<Conversation | null>
   findById(id: string): Promise<Conversation | null>
@@ -16,6 +23,7 @@ export interface IConversationRepository {
   getMessages(conversationId: string, limit?: number): Promise<Message[]>
   saveMessage(data: Omit<Message, 'id' | 'createdAt'>): Promise<Message>
   list(limit?: number, offset?: number): Promise<Conversation[]>
+  listWithCustomer(limit?: number, offset?: number): Promise<ConversationWithCustomer[]>
   setTimeoutAt(id: string, at: Date | null, warned?: boolean): Promise<void>
   findExpiredTimeouts(): Promise<ExpiredTimeout[]>
 }

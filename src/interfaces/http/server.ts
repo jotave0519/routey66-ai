@@ -9,6 +9,10 @@ import { FaqController } from './controllers/admin/FaqController'
 import { CustomersController } from './controllers/admin/CustomersController'
 import { AppointmentsController } from './controllers/admin/AppointmentsController'
 import { SettingsController } from './controllers/admin/SettingsController'
+import { VehiclesAdminController } from './controllers/admin/VehiclesAdminController'
+import { ConversationsAdminController } from './controllers/admin/ConversationsAdminController'
+import { DashboardController } from './controllers/admin/DashboardController'
+import { WhatsAppAdminController } from './controllers/admin/WhatsAppAdminController'
 
 interface ServerDeps {
   webhookController: WebhookController
@@ -17,6 +21,10 @@ interface ServerDeps {
   customersController: CustomersController
   appointmentsController: AppointmentsController
   settingsController: SettingsController
+  vehiclesAdminController: VehiclesAdminController
+  conversationsAdminController: ConversationsAdminController
+  dashboardController: DashboardController
+  whatsappAdminController: WhatsAppAdminController
 }
 
 export async function buildServer(deps: ServerDeps) {
@@ -41,6 +49,10 @@ export async function buildServer(deps: ServerDeps) {
       customers: deps.customersController,
       appointments: deps.appointmentsController,
       settings: deps.settingsController,
+      vehicles: deps.vehiclesAdminController,
+      conversations: deps.conversationsAdminController,
+      dashboard: deps.dashboardController,
+      whatsapp: deps.whatsappAdminController,
     })
   })
 

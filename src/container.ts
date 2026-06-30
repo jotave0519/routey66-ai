@@ -23,6 +23,10 @@ import { FaqController } from './interfaces/http/controllers/admin/FaqController
 import { CustomersController } from './interfaces/http/controllers/admin/CustomersController'
 import { AppointmentsController } from './interfaces/http/controllers/admin/AppointmentsController'
 import { SettingsController } from './interfaces/http/controllers/admin/SettingsController'
+import { VehiclesAdminController } from './interfaces/http/controllers/admin/VehiclesAdminController'
+import { ConversationsAdminController } from './interfaces/http/controllers/admin/ConversationsAdminController'
+import { DashboardController } from './interfaces/http/controllers/admin/DashboardController'
+import { WhatsAppAdminController } from './interfaces/http/controllers/admin/WhatsAppAdminController'
 
 export function buildContainer() {
   const calendarProvider = process.env.CALENDAR_PROVIDER ?? 'google'
@@ -93,6 +97,10 @@ export function buildContainer() {
     settingsRepo,
   )
   const settingsController = new SettingsController(settingsRepo)
+  const vehiclesAdminController = new VehiclesAdminController(vehicleRepo)
+  const conversationsAdminController = new ConversationsAdminController(conversationRepo)
+  const dashboardController = new DashboardController(customerRepo, appointmentRepo, conversationRepo)
+  const whatsappAdminController = new WhatsAppAdminController()
 
   return {
     webhookController,
@@ -101,6 +109,10 @@ export function buildContainer() {
     customersController,
     appointmentsController,
     settingsController,
+    vehiclesAdminController,
+    conversationsAdminController,
+    dashboardController,
+    whatsappAdminController,
     timeoutWorker,
   }
 }

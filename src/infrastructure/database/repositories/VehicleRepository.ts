@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { Vehicle } from '../../../domain/entities/Vehicle'
-import { IVehicleRepository } from '../../../domain/repositories/IVehicleRepository'
+import { IVehicleRepository, VehicleWithOwner } from '../../../domain/repositories/IVehicleRepository'
 import { getSupabaseClient } from '../SupabaseClient'
 
 function toVehicle(row: Record<string, unknown>): Vehicle {
@@ -88,5 +88,28 @@ export class VehicleRepository implements IVehicleRepository {
 
     if (error) throw new Error(`VehicleRepository.update: ${error.message}`)
     return toVehicle(row)
+  }
+
+  async listAll(limit = 50, offset = 0): Promise<VehicleWithOwner[]> {
+    const { data, error } = await this.db
+      .from('vehicles')
+      .select('*, customers!inner(name, phone)')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) throw new Error(`VehicleRepository.listAll: ${error.message}`)
+    return (data ?? []).map((row) => {
+      const r = row as Record<string, unknown>
+      const c = r.customers as Record<string, unknown>
+      return { ...toVehicle(r), customerName: c?.name as string, customerPhone: c?.phone as string }
+    })
+  }
+
+  async countAll(): Promise<number> {
+    const { count, error } = await this.db
+      .from('vehicles')
+      .select('*', { count: 'exact', head: true })
+    if (error) throw new Error(`VehicleRepository.countAll: ${error.message}`)
+    return count ?? 0
   }
 }

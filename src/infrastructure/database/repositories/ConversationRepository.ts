@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { Conversation, ConversationStatus } from '../../../domain/entities/Conversation'
 import { Message } from '../../../domain/entities/Message'
-import { IConversationRepository, ExpiredTimeout } from '../../../domain/repositories/IConversationRepository'
+import { IConversationRepository, ExpiredTimeout, ConversationWithCustomer } from '../../../domain/repositories/IConversationRepository'
 import { getSupabaseClient } from '../SupabaseClient'
 
 function toConversation(row: Record<string, unknown>): Conversation {
@@ -130,6 +130,48 @@ export class ConversationRepository implements IConversationRepository {
 
     if (error) throw new Error(`ConversationRepository.list: ${error.message}`)
     return (data ?? []).map(toConversation)
+  }
+
+  async listWithCustomer(limit = 50, offset = 0): Promise<ConversationWithCustomer[]> {
+    const { data, error } = await this.db
+      .from('conversations')
+      .select('*, customers!inner(name, phone)')
+      .order('started_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) throw new Error(`ConversationRepository.listWithCustomer: ${error.message}`)
+    const convs = data ?? []
+    if (convs.length === 0) return []
+
+    const ids = convs.map((r) => r.id as string)
+    const { data: msgs } = await this.db
+      .from('messages')
+      .select('conversation_id, content, created_at')
+      .in('conversation_id', ids)
+      .order('created_at', { ascending: false })
+
+    const latestMsg = new Map<string, { content: string; at: Date }>()
+    for (const m of (msgs ?? [])) {
+      if (!latestMsg.has(m.conversation_id as string)) {
+        latestMsg.set(m.conversation_id as string, {
+          content: m.content as string,
+          at: new Date(m.created_at as string),
+        })
+      }
+    }
+
+    return convs.map((row) => {
+      const r = row as Record<string, unknown>
+      const c = r.customers as Record<string, unknown>
+      const last = latestMsg.get(r.id as string)
+      return {
+        ...toConversation(r),
+        customerName: (c?.name as string) ?? '',
+        customerPhone: (c?.phone as string) ?? '',
+        lastMessage: last?.content ?? null,
+        lastMessageAt: last?.at ?? null,
+      }
+    })
   }
 
   async setTimeoutAt(id: string, at: Date | null, warned = false): Promise<void> {

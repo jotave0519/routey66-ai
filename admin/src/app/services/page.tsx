@@ -1,10 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { Card, PageHeader, Badge, Icon, Table, TR, TD, EmptyState, Btn, Input } from '@/components/ui'
 
-interface Service {
-  id: string; name: string; description: string | null; active: boolean
-}
+interface Service { id: string; name: string; description: string | null; active: boolean }
 
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([])
@@ -12,6 +11,7 @@ export default function ServicesPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
+  const [toggling, setToggling] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -24,74 +24,63 @@ export default function ServicesPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await api.post('/admin/services', { name, description })
+    await api.post('/admin/services', { name, description: description || null })
     setName(''); setDescription('')
     await load()
     setSaving(false)
   }
 
   const toggle = async (s: Service) => {
+    setToggling(s.id)
     await api.patch(`/admin/services/${s.id}`, { active: !s.active })
     await load()
+    setToggling(null)
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Serviços</h1>
+    <div style={{ padding: '28px 32px', maxWidth: 900 }}>
+      <PageHeader title="Serviços" subtitle="Gerencie os serviços oferecidos pela oficina" />
 
-      <form onSubmit={create} className="bg-white rounded-lg shadow p-6 mb-8 flex gap-4 flex-wrap">
-        <input
-          className="border rounded px-3 py-2 flex-1 min-w-48 text-sm"
-          placeholder="Nome do serviço"
-          value={name} onChange={(e) => setName(e.target.value)} required
-        />
-        <input
-          className="border rounded px-3 py-2 flex-1 min-w-48 text-sm"
-          placeholder="Descrição (opcional)"
-          value={description} onChange={(e) => setDescription(e.target.value)}
-        />
-        <button
-          type="submit" disabled={saving}
-          className="bg-orange-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
-        >
-          {saving ? 'Salvando…' : 'Adicionar'}
-        </button>
-      </form>
-
-      {loading ? <p className="text-gray-500">Carregando…</p> : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                {['Nome', 'Descrição', 'Status', 'Ação'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {services.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{s.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{s.description ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {s.active ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggle(s)}
-                      className="text-xs text-orange-600 hover:underline"
-                    >
-                      {s.active ? 'Desativar' : 'Ativar'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <Card style={{ padding: '20px 24px', marginBottom: 20 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="add_circle" size={16} color="var(--primary)" /> Novo serviço
         </div>
-      )}
+        <form onSubmit={create} style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <Input value={name} onChange={setName} placeholder="Nome do serviço" style={{ flex: '1 1 200px', minWidth: 200 }} />
+          <Input value={description} onChange={setDescription} placeholder="Descrição (opcional)" style={{ flex: '2 1 280px' }} />
+          <Btn type="submit" disabled={saving || !name.trim()}>
+            <Icon name="add" size={15} color="#fff" />
+            {saving ? 'Adicionando…' : 'Adicionar'}
+          </Btn>
+        </form>
+      </Card>
+
+      <Card>
+        {loading ? (
+          <EmptyState message="Carregando…" icon="hourglass_empty" />
+        ) : services.length === 0 ? (
+          <EmptyState message="Nenhum serviço cadastrado" icon="build" />
+        ) : (
+          <Table headers={['Serviço', 'Descrição', 'Status', '']}>
+            {services.map((s) => (
+              <TR key={s.id}>
+                <TD style={{ fontWeight: 500 }}>{s.name}</TD>
+                <TD style={{ color: 'var(--muted)' }}>{s.description ?? '—'}</TD>
+                <TD><Badge color={s.active ? 'green' : 'gray'}>{s.active ? 'Ativo' : 'Inativo'}</Badge></TD>
+                <TD>
+                  <button
+                    onClick={() => toggle(s)}
+                    disabled={toggling === s.id}
+                    style={{ fontSize: 12, color: s.active ? '#dc2626' : 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, padding: 0, opacity: toggling === s.id ? 0.5 : 1 }}
+                  >
+                    {toggling === s.id ? '…' : s.active ? 'Desativar' : 'Ativar'}
+                  </button>
+                </TD>
+              </TR>
+            ))}
+          </Table>
+        )}
+      </Card>
     </div>
   )
 }
