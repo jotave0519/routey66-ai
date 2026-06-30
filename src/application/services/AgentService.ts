@@ -50,9 +50,10 @@ const AGENT_TOOLS: AITool[] = [
       properties: {
         vehicle_id: { type: 'string', description: 'ID do veículo retornado por find_or_create_vehicle' },
         service_name: { type: 'string', description: 'Nome do serviço desejado' },
-        slot_start: { type: 'string', description: 'Data/hora de início em ISO 8601 (ex: 2026-07-15T10:00:00.000Z)' },
+        date: { type: 'string', description: 'Data no formato YYYY-MM-DD (ex: 2026-07-15)' },
+        time: { type: 'string', description: 'Horário exatamente como exibido para o cliente, no formato HH:MM (ex: 11:00). Não converta nem ajuste — copie o valor mostrado.' },
       },
-      required: ['vehicle_id', 'service_name', 'slot_start'],
+      required: ['vehicle_id', 'service_name', 'date', 'time'],
     },
   },
   {
@@ -62,9 +63,10 @@ const AGENT_TOOLS: AITool[] = [
       type: 'object',
       properties: {
         appointment_id: { type: 'string', description: 'ID do agendamento a remarcar' },
-        slot_start: { type: 'string', description: 'Nova data/hora em ISO 8601' },
+        date: { type: 'string', description: 'Nova data no formato YYYY-MM-DD (ex: 2026-07-15)' },
+        time: { type: 'string', description: 'Novo horário exatamente como exibido para o cliente, no formato HH:MM (ex: 11:00). Não converta nem ajuste — copie o valor mostrado.' },
       },
-      required: ['appointment_id', 'slot_start'],
+      required: ['appointment_id', 'date', 'time'],
     },
   },
   {
@@ -218,15 +220,14 @@ export class AgentService {
           timeZone: 'America/Sao_Paulo',
         })
 
-        const slotLines = slots.map((s) => {
-          const time = s.start.toLocaleTimeString('pt-BR', {
+        const slotLines = slots.map((s) =>
+          s.start.toLocaleTimeString('pt-BR', {
             hour: '2-digit', minute: '2-digit',
             timeZone: 'America/Sao_Paulo',
-          })
-          return `${time} [${s.start.toISOString()}]`
-        }).join('\n')
+          }),
+        ).join('\n')
 
-        return `Horários disponíveis para ${dateLabel}:\n${slotLines}\n\nInstrução: mostre ao cliente apenas os horários (HH:MM), sem os colchetes. Use os valores entre colchetes internamente para criar o agendamento.`
+        return `Horários disponíveis para ${dateLabel}:\n${slotLines}\n\nInstrução: ao criar o agendamento, passe exatamente a data "${dateStr}" e o horário escolhido pelo cliente no formato HH:MM, sem qualquer conversão.`
       }
 
       case 'find_or_create_vehicle': {
@@ -266,8 +267,13 @@ export class AgentService {
         const service = await serviceRepo.findByName(input.service_name as string)
         if (!service) return `Serviço "${input.service_name}" não encontrado.`
 
-        const slotStart = new Date(input.slot_start as string)
+        // Build slot time explicitly in BRT (-03:00) — the LLM provides human-readable
+        // date+time so the server owns the timezone conversion, never the model.
+        const slotStart = new Date(`${input.date as string}T${input.time as string}:00-03:00`)
         const slotEnd = new Date(slotStart.getTime() + settings.slotDurationMinutes * 60_000)
+
+        console.log(`[create_appointment] input date="${input.date}" time="${input.time}"`)
+        console.log(`[create_appointment] slotStart UTC=${slotStart.toISOString()} BRT=${slotStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`)
 
         const vehicle = await vehicleRepo.findById(input.vehicle_id as string)
         if (!vehicle) return 'Veículo não encontrado.'
@@ -320,8 +326,11 @@ export class AgentService {
         const appointment = await appointmentRepo.findById(input.appointment_id as string)
         if (!appointment) return 'Agendamento não encontrado.'
 
-        const newStart = new Date(input.slot_start as string)
+        const newStart = new Date(`${input.date as string}T${input.time as string}:00-03:00`)
         const newEnd = new Date(newStart.getTime() + settings.slotDurationMinutes * 60_000)
+
+        console.log(`[reschedule_appointment] input date="${input.date}" time="${input.time}"`)
+        console.log(`[reschedule_appointment] newStart UTC=${newStart.toISOString()} BRT=${newStart.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`)
 
         if (appointment.googleEventId) {
           try {

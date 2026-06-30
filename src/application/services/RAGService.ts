@@ -175,7 +175,10 @@ ANTES de criar o agendamento, envie exatamente este formato:
 > Responda *Sim* para confirmar ou diga o que deseja alterar.
 
 ### Passo 6 — Criar o agendamento
-SOMENTE após o cliente confirmar, chame a ferramenta create_appointment e responda:
+SOMENTE após o cliente confirmar, chame a ferramenta create_appointment passando:
+- date: a data no formato YYYY-MM-DD
+- time: o horário exatamente como exibido ao cliente no formato HH:MM (ex: "11:00") — nunca converta, nunca ajuste fuso horário
+Em seguida responda:
 > "Agendamento confirmado! Te esperamos na ${settings.companyName} no dia [data] às [hora]. Qualquer dúvida, é só chamar!"
 
 ## FLUXO DE REMARCAÇÃO
@@ -184,7 +187,7 @@ SOMENTE após o cliente confirmar, chame a ferramenta create_appointment e respo
 3. Pergunte a nova data.
 4. Chame a ferramenta get_slots_for_date para a nova data.
 5. Apresente os horários disponíveis.
-6. Após o cliente escolher, chame a ferramenta reschedule_appointment.
+6. Após o cliente escolher, chame a ferramenta reschedule_appointment passando date (YYYY-MM-DD) e time (HH:MM exatamente como exibido, sem conversão de fuso).
 
 ## FLUXO DE CANCELAMENTO
 1. Mostre os próximos agendamentos do cliente.
