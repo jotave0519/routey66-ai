@@ -1,6 +1,16 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import axios, { AxiosError } from 'axios'
 
+// Evolution API v2 response shape from /instance/fetchInstances
+interface EvolutionInstance {
+  id: string
+  name: string
+  connectionStatus: string   // "open" | "close" | "connecting" | "qrcode"
+  ownerJid: string | null    // "5511999998888@s.whatsapp.net"
+  profileName: string | null
+  profilePicUrl: string | null
+}
+
 export class WhatsAppAdminController {
   private cfg() {
     return {
@@ -10,7 +20,7 @@ export class WhatsAppAdminController {
     }
   }
 
-  private headers(key: string) {
+  private h(key: string) {
     return { apikey: key }
   }
 
@@ -23,39 +33,39 @@ export class WhatsAppAdminController {
     }
 
     try {
-      const res = await axios.get(`${url}/instance/fetchInstances`, {
-        headers: this.headers(key),
+      const res = await axios.get<EvolutionInstance[]>(`${url}/instance/fetchInstances`, {
+        headers: this.h(key),
         timeout: 8000,
       })
 
-      const list: Record<string, unknown>[] = Array.isArray(res.data) ? res.data : []
-      const found = list.find(
-        (i) => (i.instance as Record<string, unknown>)?.instanceName === instance,
-      )
+      const list: EvolutionInstance[] = Array.isArray(res.data) ? res.data : []
+
+      // Evolution API v2: match by "name" field (not instance.instanceName)
+      const found = list.find((i) => i.name === instance)
 
       if (!found) {
         reply.send({ connected: false, status: 'not_found', instance })
         return
       }
 
-      const inst = found.instance as Record<string, unknown>
-      const state = (inst.status as string) ?? 'close'
+      const state = found.connectionStatus ?? 'close'
       const connected = state === 'open'
 
-      // Phone comes as "5511999998888@s.whatsapp.net" — strip the suffix
-      const rawOwner = (found.owner as string) ?? null
-      const phone = rawOwner ? rawOwner.replace(/@.*/, '') : null
+      // ownerJid comes as "5511999998888@s.whatsapp.net" — strip suffix
+      const phone = found.ownerJid ? found.ownerJid.replace(/@.*/, '') : null
 
       reply.send({
         connected,
         status: state,
         instance,
         phone,
-        profileName: (found.profileName as string) ?? null,
-        profilePicUrl: (found.profilePicUrl as string) ?? null,
+        profileName: found.profileName ?? null,
+        profilePicUrl: found.profilePicUrl ?? null,
       })
     } catch (e) {
-      const msg = e instanceof AxiosError ? `${e.response?.status ?? ''} ${e.message}` : String(e)
+      const msg = e instanceof AxiosError
+        ? `${e.response?.status ?? ''} ${e.message}`
+        : String(e)
       reply.send({ connected: false, status: 'error', instance, error: msg })
     }
   }
@@ -69,31 +79,37 @@ export class WhatsAppAdminController {
     }
 
     try {
-      const res = await axios.get(`${url}/instance/connect/${instance}`, {
-        headers: this.headers(key),
-        timeout: 20000,
+      // First check if already connected — avoid generating a new QR unnecessarily
+      const statusRes = await axios.get<EvolutionInstance[]>(`${url}/instance/fetchInstances`, {
+        headers: this.h(key),
+        timeout: 8000,
       })
+      const list: EvolutionInstance[] = Array.isArray(statusRes.data) ? statusRes.data : []
+      const found = list.find((i) => i.name === instance)
 
-      const data = res.data as Record<string, unknown>
-
-      // Already connected
-      if ((data?.instance as Record<string, unknown>)?.status === 'open') {
+      if (found?.connectionStatus === 'open') {
         reply.send({ connected: true, qrcode: null })
         return
       }
 
-      // QR code returned as base64 image string
-      const qrcode = (data['base64'] as string) ?? ((data['qrcode'] as Record<string, unknown>)?.['base64'] as string) ?? null
+      // Request QR code
+      const qrRes = await axios.get(`${url}/instance/connect/${instance}`, {
+        headers: this.h(key),
+        timeout: 20000,
+      })
 
-      if (!qrcode) {
-        reply.send({ connected: false, qrcode: null, raw: data })
-        return
-      }
+      const data = qrRes.data as Record<string, unknown>
+
+      // Evolution API v2 returns { base64: "data:image/png;base64,..." } or { qrcode: { base64: "..." } }
+      const qrcode =
+        (data['base64'] as string | undefined) ??
+        ((data['qrcode'] as Record<string, unknown> | undefined)?.['base64'] as string | undefined) ??
+        null
 
       reply.send({ connected: false, qrcode })
     } catch (e) {
       const msg = e instanceof AxiosError
-        ? `Evolution API error ${e.response?.status ?? ''}: ${e.message}`
+        ? `Evolution API ${e.response?.status ?? ''}: ${e.message}`
         : String(e)
       reply.code(500).send({ error: msg })
     }
@@ -104,7 +120,7 @@ export class WhatsAppAdminController {
 
     try {
       await axios.delete(`${url}/instance/logout/${instance}`, {
-        headers: this.headers(key),
+        headers: this.h(key),
         timeout: 8000,
       })
       reply.code(204).send()
