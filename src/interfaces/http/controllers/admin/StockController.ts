@@ -5,10 +5,8 @@ export class StockController {
   constructor(private readonly stockRepo: IStockRepository) {}
 
   async summary(_req: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const items = await this.stockRepo.list(1000, 0)
-    const lowStock = items.filter((i) => i.quantity <= i.minQuantity && i.minQuantity > 0)
-    const totalValue = items.reduce((sum, i) => sum + (i.quantity * (i.costPrice ?? 0)), 0)
-    reply.send({ total: items.length, lowStock: lowStock.length, totalValue })
+    const s = await this.stockRepo.getSummary()
+    reply.send(s)
   }
 
   async list(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -41,12 +39,16 @@ export class StockController {
       name: string; category: string; sku: string; quantity: number; minQuantity: number
       unit: string; costPrice: number; salePrice: number; supplier: string; notes: string
     }>
+    const existing = await this.stockRepo.findById(id)
+    if (!existing) { reply.code(404).send({ error: 'Item not found' }); return }
     const item = await this.stockRepo.update(id, body)
     reply.send(item)
   }
 
   async remove(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { id } = request.params as { id: string }
+    const existing = await this.stockRepo.findById(id)
+    if (!existing) { reply.code(404).send({ error: 'Item not found' }); return }
     await this.stockRepo.delete(id)
     reply.code(204).send()
   }

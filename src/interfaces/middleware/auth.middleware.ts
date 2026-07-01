@@ -8,6 +8,6 @@ export async function adminAuthMiddleware(
   const provided = request.headers['x-admin-key']
 
   if (!adminToken || provided !== adminToken) {
-    reply.code(401).send({ error: 'Unauthorized' })
+    return reply.code(401).send({ error: 'Unauthorized' })
   }
 }

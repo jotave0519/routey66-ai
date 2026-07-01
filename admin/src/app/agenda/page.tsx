@@ -471,7 +471,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               <label style={labelStyle}>Serviço</label>
               <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} style={selStyle}>
                 <option value="">Selecione o serviço…</option>
-                {services.filter((s: Service & { active?: boolean }) => s.active !== false).map((s) => (
+                {services.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
@@ -586,17 +586,23 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true)
   const [selectedAppt, setSelectedAppt] = useState<Appt | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const failCount = { current: 0 }
 
   const loadAppts = useCallback(async () => {
     try {
-      const d = await api.get<{ data: Appt[] } | Appt[]>('/admin/appointments?limit=500')
-      setAppts(Array.isArray(d) ? d : (d.data ?? []))
+      const d = await api.get<{ data: Appt[] }>('/admin/appointments?limit=500')
+      setAppts(d.data ?? [])
+      failCount.current = 0
+    } catch {
+      failCount.current += 1
     } finally { setLoading(false) }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     loadAppts()
-    const t = setInterval(loadAppts, 30_000)
+    const t = setInterval(() => {
+      if (failCount.current < 3) loadAppts()
+    }, 30_000)
     return () => clearInterval(t)
   }, [loadAppts])
 

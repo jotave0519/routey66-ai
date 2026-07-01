@@ -221,18 +221,25 @@ export default function EstoquePage() {
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [editItem, setEditItem] = useState<StockItem | undefined>(undefined)
   const [showCreate, setShowCreate] = useState(false)
   const [movItem, setMovItem] = useState<StockItem | null>(null)
 
   const load = useCallback(async () => {
-    const [itemsRes, sumRes] = await Promise.all([
-      api.get<{ data: StockItem[] }>('/admin/stock?limit=500'),
-      api.get<Summary>('/admin/stock/summary'),
-    ])
-    setItems(itemsRes.data ?? [])
-    setSummary(sumRes)
-    setLoading(false)
+    setLoadError('')
+    try {
+      const [itemsRes, sumRes] = await Promise.all([
+        api.get<{ data: StockItem[] }>('/admin/stock?limit=500'),
+        api.get<Summary>('/admin/stock/summary'),
+      ])
+      setItems(itemsRes.data ?? [])
+      setSummary(sumRes)
+    } catch (e: unknown) {
+      setLoadError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -258,6 +265,8 @@ export default function EstoquePage() {
         subtitle="Controle de peças e insumos"
         actions={<Btn onClick={() => setShowCreate(true)}><Icon name="add" size={15} color="#fff" />Novo Produto</Btn>}
       />
+
+      {loadError && <div style={{ padding: '10px 14px', background: '#fee2e2', color: '#b91c1c', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{loadError}</div>}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>

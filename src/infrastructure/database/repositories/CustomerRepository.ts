@@ -63,11 +63,12 @@ export class CustomerRepository implements ICustomerRepository {
     if (error) throw new Error(`CustomerRepository.delete: ${error.message}`)
   }
 
-  async update(id: string, data: Partial<Pick<Customer, 'name' | 'whatsappName'>>): Promise<Customer> {
+  async update(id: string, data: Partial<Pick<Customer, 'name' | 'phone' | 'whatsappName'>>): Promise<Customer> {
     const { data: row, error } = await this.db
       .from('customers')
       .update({
         ...(data.name !== undefined && { name: data.name }),
+        ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.whatsappName !== undefined && { whatsapp_name: data.whatsappName }),
       })
       .eq('id', id)

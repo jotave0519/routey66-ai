@@ -217,6 +217,7 @@ export default function WhatsAppPage() {
 
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const qrRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusFailCount = useRef(0)
 
   const clearTimers = () => {
     if (statusPollRef.current) clearInterval(statusPollRef.current)
@@ -227,8 +228,11 @@ export default function WhatsAppPage() {
     try {
       const data = await api.get<WaStatus>('/admin/whatsapp/status')
       setStatus(data)
+      statusFailCount.current = 0
       return data
     } catch {
+      statusFailCount.current += 1
+      if (statusFailCount.current >= 5) clearTimers()
       const fallback: WaStatus = { connected: false, status: 'error', instance: '—', phone: null, profileName: null, profilePicUrl: null }
       setStatus(fallback)
       return fallback
@@ -236,7 +240,7 @@ export default function WhatsAppPage() {
       setLoadingStatus(false)
       setRefreshing(false)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchQR = useCallback(async () => {
     setLoadingQR(true)

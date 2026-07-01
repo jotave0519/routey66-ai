@@ -28,7 +28,7 @@ export class CustomersController {
     if (!customer) { reply.code(404).send({ error: 'Customer not found' }); return }
     const updated = await this.customerRepo.update(id, {
       ...(name !== undefined && { name }),
-      ...(phone !== undefined && { whatsappName: phone }),
+      ...(phone !== undefined && { phone }),
     })
     reply.send({ customer: updated })
   }

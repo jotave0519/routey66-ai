@@ -1,12 +1,9 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
-const TOKEN = process.env.ADMIN_API_TOKEN ?? ''
-
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const proxyPath = `/api/proxy${path}`
+  const res = await fetch(proxyPath, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'x-admin-key': TOKEN,
       ...options.headers,
     },
     cache: 'no-store',

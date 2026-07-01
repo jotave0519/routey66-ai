@@ -36,7 +36,12 @@ export async function buildServer(deps: ServerDeps) {
     },
   })
 
-  await fastify.register(cors, { origin: true })
+  await fastify.register(cors, {
+    origin: process.env.NODE_ENV === 'production'
+      ? (process.env.ADMIN_ORIGIN ?? 'https://oficina-routey66-admin.uule1c.easypanel.host')
+      : true,
+    credentials: true,
+  })
   await fastify.register(sensible)
 
   fastify.get('/', async () => ({ status: 'ok' }))

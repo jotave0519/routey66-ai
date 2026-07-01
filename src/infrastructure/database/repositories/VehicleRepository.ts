@@ -84,9 +84,14 @@ export class VehicleRepository implements IVehicleRepository {
     id: string,
     data: Partial<Pick<Vehicle, 'brand' | 'model' | 'plate' | 'year'>>
   ): Promise<Vehicle> {
+    const patch: Record<string, unknown> = {}
+    if (data.brand !== undefined) patch.brand = data.brand
+    if (data.model !== undefined) patch.model = data.model
+    if (data.plate !== undefined) patch.plate = data.plate.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (data.year !== undefined) patch.year = data.year
     const { data: row, error } = await this.db
       .from('vehicles')
-      .update(data)
+      .update(patch)
       .eq('id', id)
       .select()
       .single()

@@ -51,6 +51,18 @@ export class StockRepository implements IStockRepository {
     return count ?? 0
   }
 
+  async getSummary(): Promise<{ total: number; lowStock: number; totalValue: number }> {
+    const { data, error } = await this.db
+      .from('stock_items')
+      .select('quantity,min_quantity,cost_price')
+    if (error) throw new Error(`StockRepository.getSummary: ${error.message}`)
+    const rows = (data ?? []) as { quantity: number; min_quantity: number; cost_price: number | null }[]
+    const total = rows.length
+    const lowStock = rows.filter((r) => r.quantity <= r.min_quantity && r.min_quantity > 0).length
+    const totalValue = rows.reduce((sum, r) => sum + r.quantity * (r.cost_price ?? 0), 0)
+    return { total, lowStock, totalValue }
+  }
+
   async findById(id: string): Promise<StockItem | null> {
     const { data, error } = await this.db.from('stock_items').select('*').eq('id', id).maybeSingle()
     if (error) throw new Error(`StockRepository.findById: ${error.message}`)
