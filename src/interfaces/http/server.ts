@@ -40,7 +40,8 @@ export async function buildServer(deps: ServerDeps) {
   await fastify.register(sensible)
 
   fastify.get('/', async () => ({ status: 'ok' }))
-  fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
+  fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString(), version: '2' }))
+  fastify.get('/version', async () => ({ version: '2', routes: ['stock', 'customers', 'vehicles'] }))
 
   webhookRoutes(fastify, deps.webhookController)
 
