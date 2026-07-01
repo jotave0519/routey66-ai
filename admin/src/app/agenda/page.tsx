@@ -470,8 +470,8 @@ export default function AgendaPage() {
 
   const loadAppts = useCallback(async () => {
     try {
-      const d = await api.get<{ data: Appt[] }>('/admin/appointments?limit=500')
-      setAppts(d.data ?? [])
+      const d = await api.get<{ data: Appt[] } | Appt[]>('/admin/appointments?limit=500')
+      setAppts(Array.isArray(d) ? d : (d.data ?? []))
     } finally { setLoading(false) }
   }, [])
 
