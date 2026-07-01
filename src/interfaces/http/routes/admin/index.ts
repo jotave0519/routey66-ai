@@ -9,6 +9,7 @@ import { VehiclesAdminController } from '../../controllers/admin/VehiclesAdminCo
 import { ConversationsAdminController } from '../../controllers/admin/ConversationsAdminController'
 import { DashboardController } from '../../controllers/admin/DashboardController'
 import { WhatsAppAdminController } from '../../controllers/admin/WhatsAppAdminController'
+import { StockController } from '../../controllers/admin/StockController'
 
 interface AdminControllers {
   services: ServicesController
@@ -20,6 +21,7 @@ interface AdminControllers {
   conversations: ConversationsAdminController
   dashboard: DashboardController
   whatsapp: WhatsAppAdminController
+  stock: StockController
 }
 
 export function adminRoutes(fastify: FastifyInstance, controllers: AdminControllers): void {
@@ -41,11 +43,22 @@ export function adminRoutes(fastify: FastifyInstance, controllers: AdminControll
 
   // Customers
   fastify.get('/admin/customers', (req, reply) => controllers.customers.list(req, reply))
+  fastify.post('/admin/customers', (req, reply) => controllers.customers.create(req, reply))
   fastify.get('/admin/customers/:id', (req, reply) => controllers.customers.getOne(req, reply))
 
   // Vehicles
   fastify.get('/admin/vehicles', (req, reply) => controllers.vehicles.list(req, reply))
+  fastify.post('/admin/vehicles', (req, reply) => controllers.vehicles.create(req, reply))
   fastify.get('/admin/vehicles/:id', (req, reply) => controllers.vehicles.getOne(req, reply))
+
+  // Stock
+  fastify.get('/admin/stock/summary', (req, reply) => controllers.stock.summary(req, reply))
+  fastify.get('/admin/stock', (req, reply) => controllers.stock.list(req, reply))
+  fastify.post('/admin/stock', (req, reply) => controllers.stock.create(req, reply))
+  fastify.patch('/admin/stock/:id', (req, reply) => controllers.stock.update(req, reply))
+  fastify.delete('/admin/stock/:id', (req, reply) => controllers.stock.remove(req, reply))
+  fastify.post('/admin/stock/:id/movement', (req, reply) => controllers.stock.addMovement(req, reply))
+  fastify.get('/admin/stock/:id/movements', (req, reply) => controllers.stock.getMovements(req, reply))
 
   // Appointments
   fastify.get('/admin/appointments', (req, reply) => controllers.appointments.list(req, reply))

@@ -27,6 +27,8 @@ import { VehiclesAdminController } from './interfaces/http/controllers/admin/Veh
 import { ConversationsAdminController } from './interfaces/http/controllers/admin/ConversationsAdminController'
 import { DashboardController } from './interfaces/http/controllers/admin/DashboardController'
 import { WhatsAppAdminController } from './interfaces/http/controllers/admin/WhatsAppAdminController'
+import { StockRepository } from './infrastructure/database/repositories/StockRepository'
+import { StockController } from './interfaces/http/controllers/admin/StockController'
 
 export function buildContainer() {
   const calendarProvider = process.env.CALENDAR_PROVIDER ?? 'google'
@@ -35,6 +37,7 @@ export function buildContainer() {
   }
 
   // Repositories
+  const stockRepo = new StockRepository()
   const customerRepo = new CustomerRepository()
   const vehicleRepo = new VehicleRepository()
   const serviceRepo = new ServiceRepository()
@@ -101,6 +104,7 @@ export function buildContainer() {
   const conversationsAdminController = new ConversationsAdminController(conversationRepo)
   const dashboardController = new DashboardController(customerRepo, appointmentRepo, conversationRepo)
   const whatsappAdminController = new WhatsAppAdminController()
+  const stockController = new StockController(stockRepo)
 
   return {
     webhookController,
@@ -113,6 +117,7 @@ export function buildContainer() {
     conversationsAdminController,
     dashboardController,
     whatsappAdminController,
+    stockController,
     timeoutWorker,
   }
 }

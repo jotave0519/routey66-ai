@@ -13,6 +13,7 @@ import { VehiclesAdminController } from './controllers/admin/VehiclesAdminContro
 import { ConversationsAdminController } from './controllers/admin/ConversationsAdminController'
 import { DashboardController } from './controllers/admin/DashboardController'
 import { WhatsAppAdminController } from './controllers/admin/WhatsAppAdminController'
+import { StockController } from './controllers/admin/StockController'
 
 interface ServerDeps {
   webhookController: WebhookController
@@ -25,6 +26,7 @@ interface ServerDeps {
   conversationsAdminController: ConversationsAdminController
   dashboardController: DashboardController
   whatsappAdminController: WhatsAppAdminController
+  stockController: StockController
 }
 
 export async function buildServer(deps: ServerDeps) {
@@ -53,6 +55,7 @@ export async function buildServer(deps: ServerDeps) {
       conversations: deps.conversationsAdminController,
       dashboard: deps.dashboardController,
       whatsapp: deps.whatsappAdminController,
+      stock: deps.stockController,
     })
   })
 

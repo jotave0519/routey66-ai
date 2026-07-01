@@ -279,11 +279,33 @@ function AppointmentModal({ appt, onClose, onUpdated }: { appt: Appt; onClose: (
 
 // ─── Create Modal ─────────────────────────────────────────────────────────────
 
+const BRANDS_LIST = ['Chevrolet', 'Fiat', 'Ford', 'Honda', 'Hyundai', 'Jeep', 'Nissan', 'Peugeot', 'Renault', 'Toyota', 'Volkswagen', 'Outro']
+
+function TabBar({ active, onChange }: { active: 'existing' | 'new'; onChange: (v: 'existing' | 'new') => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 2, marginBottom: 10, background: 'var(--bg)', borderRadius: 8, padding: 3 }}>
+      {(['existing', 'new'] as const).map((t) => (
+        <button key={t} type="button" onClick={() => onChange(t)} style={{
+          flex: 1, padding: '6px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 500,
+          background: active === t ? 'var(--card)' : 'transparent',
+          color: active === t ? 'var(--text)' : 'var(--muted)',
+          boxShadow: active === t ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+        }}>
+          {t === 'existing' ? 'Selecionar existente' : '+ Criar novo'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [slots, setSlots] = useState<Slot[]>([])
+
+  // IDs confirmados
   const [customerId, setCustomerId] = useState('')
   const [vehicleId, setVehicleId] = useState('')
   const [serviceId, setServiceId] = useState('')
@@ -291,7 +313,24 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [slot, setSlot] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
-  const [step, setStep] = useState(1)
+
+  // Tabs
+  const [customerTab, setCustomerTab] = useState<'existing' | 'new'>('existing')
+  const [vehicleTab, setVehicleTab] = useState<'existing' | 'new'>('existing')
+
+  // Novo cliente inline
+  const [newCName, setNewCName] = useState('')
+  const [newCPhone, setNewCPhone] = useState('')
+  const [newCError, setNewCError] = useState('')
+  const [creatingC, setCreatingC] = useState(false)
+
+  // Novo veículo inline
+  const [newVBrand, setNewVBrand] = useState('')
+  const [newVModel, setNewVModel] = useState('')
+  const [newVPlate, setNewVPlate] = useState('')
+  const [newVYear, setNewVYear] = useState('')
+  const [newVError, setNewVError] = useState('')
+  const [creatingV, setCreatingV] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -300,12 +339,40 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     ]).then(([c, s]) => { setCustomers(c.data ?? []); setServices(Array.isArray(s) ? s : []) })
   }, [])
 
-  async function selectCustomer(id: string) {
-    setCustomerId(id); setVehicleId(''); setVehicles([])
+  async function confirmCustomerExisting(id: string) {
     if (!id) return
+    setCustomerId(id); setVehicleId(''); setVehicles([])
     const r = await api.get<{ vehicles: Vehicle[] }>(`/admin/customers/${id}`)
     setVehicles(r.vehicles ?? [])
-    setStep(2)
+  }
+
+  async function createCustomerInline() {
+    if (!newCName.trim() || !newCPhone.trim()) { setNewCError('Nome e telefone são obrigatórios'); return }
+    setCreatingC(true); setNewCError('')
+    try {
+      const res = await api.post<{ customer: Customer }>('/admin/customers', { name: newCName.trim(), phone: newCPhone.trim() })
+      const c = res.customer
+      setCustomers((prev) => [c, ...prev])
+      setCustomerId(c.id); setVehicles([]); setVehicleId('')
+      setCustomerTab('existing')
+    } catch (e: unknown) { setNewCError((e as Error).message ?? 'Erro ao criar cliente') }
+    setCreatingC(false)
+  }
+
+  async function createVehicleInline() {
+    if (!newVBrand || !newVModel.trim() || !newVPlate.trim()) { setNewVError('Marca, modelo e placa são obrigatórios'); return }
+    setCreatingV(true); setNewVError('')
+    try {
+      const res = await api.post<{ vehicle: Vehicle }>('/admin/vehicles', {
+        customerId, brand: newVBrand, model: newVModel.trim(),
+        plate: newVPlate.trim(), year: newVYear ? Number(newVYear) : undefined,
+      })
+      const v = res.vehicle
+      setVehicles((prev) => [...prev, v])
+      setVehicleId(v.id)
+      setVehicleTab('existing')
+    } catch (e: unknown) { setNewVError((e as Error).message ?? 'Erro ao criar veículo') }
+    setCreatingV(false)
   }
 
   async function selectDate(d: string) {
@@ -326,34 +393,83 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     width: '100%', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px',
     fontSize: 13, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)', outline: 'none',
   }
+  const inpSm: React.CSSProperties = { ...selStyle, background: 'var(--card)' }
+
+  const errBox = (msg: string) => msg ? (
+    <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', borderRadius: 6, padding: '7px 10px', marginTop: 6 }}>{msg}</div>
+  ) : null
 
   return (
     <Overlay onClose={onClose}>
-      <div style={{ width: 480 }}>
+      <div style={{ width: 500 }}>
         <ModalHeader title="Novo Agendamento" onClose={onClose} />
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* ── Step 1: Cliente ── */}
           <div>
             <label style={labelStyle}>Cliente</label>
-            <select value={customerId} onChange={(e) => selectCustomer(e.target.value)} style={selStyle}>
-              <option value="">Selecione o cliente…</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name || c.phone}</option>)}
-            </select>
+            <TabBar active={customerTab} onChange={(t) => { setCustomerTab(t); setCustomerId(''); setVehicleId(''); setVehicles([]) }} />
+            {customerTab === 'existing' ? (
+              <select value={customerId} onChange={(e) => confirmCustomerExisting(e.target.value)} style={selStyle}>
+                <option value="">Selecione o cliente…</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name || c.phone}</option>)}
+              </select>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input style={inpSm} value={newCName} onChange={(e) => setNewCName(e.target.value)} placeholder="Nome completo *" />
+                <input style={inpSm} value={newCPhone} onChange={(e) => setNewCPhone(e.target.value)} placeholder="Telefone (ex: 5511999998888) *" />
+                {errBox(newCError)}
+                <Btn onClick={createCustomerInline} disabled={creatingC || !newCName || !newCPhone}>
+                  <Icon name="person_add" size={13} color="#fff" />{creatingC ? 'Criando…' : 'Criar e selecionar'}
+                </Btn>
+                {customerId && <div style={{ fontSize: 12, color: '#16a34a' }}>✓ Cliente criado com sucesso</div>}
+              </div>
+            )}
           </div>
 
+          {/* ── Step 2: Veículo (só aparece quando cliente está selecionado) ── */}
           {customerId && (
             <div>
               <label style={labelStyle}>Veículo</label>
-              <select value={vehicleId} onChange={(e) => { setVehicleId(e.target.value); setStep(3) }} style={selStyle}>
-                <option value="">Selecione o veículo…</option>
-                {vehicles.map((v) => <option key={v.id} value={v.id}>{v.brand} {v.model} – {v.plate}</option>)}
-              </select>
+              <TabBar active={vehicleTab} onChange={(t) => { setVehicleTab(t); setVehicleId('') }} />
+              {vehicleTab === 'existing' ? (
+                vehicles.length > 0 ? (
+                  <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} style={selStyle}>
+                    <option value="">Selecione o veículo…</option>
+                    {vehicles.map((v) => <option key={v.id} value={v.id}>{v.brand} {v.model} – {v.plate}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>
+                    Nenhum veículo cadastrado para este cliente.{' '}
+                    <button type="button" onClick={() => setVehicleTab('new')} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}>Criar agora →</button>
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <select style={inpSm} value={newVBrand} onChange={(e) => setNewVBrand(e.target.value)}>
+                    <option value="">Marca *</option>
+                    {BRANDS_LIST.map((b) => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <input style={inpSm} value={newVModel} onChange={(e) => setNewVModel(e.target.value)} placeholder="Modelo * (ex: Onix 1.0 Turbo)" />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input style={{ ...inpSm, flex: 1 }} value={newVPlate} onChange={(e) => setNewVPlate(e.target.value.toUpperCase())} placeholder="Placa *" maxLength={8} />
+                    <input style={{ ...inpSm, flex: 1 }} type="number" value={newVYear} onChange={(e) => setNewVYear(e.target.value)} placeholder="Ano" min={1950} max={new Date().getFullYear() + 1} />
+                  </div>
+                  {errBox(newVError)}
+                  <Btn onClick={createVehicleInline} disabled={creatingV || !newVBrand || !newVModel || !newVPlate}>
+                    <Icon name="directions_car" size={13} color="#fff" />{creatingV ? 'Criando…' : 'Criar e selecionar'}
+                  </Btn>
+                  {vehicleId && <div style={{ fontSize: 12, color: '#16a34a' }}>✓ Veículo criado com sucesso</div>}
+                </div>
+              )}
             </div>
           )}
 
+          {/* ── Step 3: Serviço ── */}
           {vehicleId && (
             <div>
               <label style={labelStyle}>Serviço</label>
-              <select value={serviceId} onChange={(e) => { setServiceId(e.target.value); setStep(4) }} style={selStyle}>
+              <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} style={selStyle}>
                 <option value="">Selecione o serviço…</option>
                 {services.filter((s: Service & { active?: boolean }) => s.active !== false).map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
@@ -362,6 +478,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
           )}
 
+          {/* ── Step 4: Data ── */}
           {serviceId && (
             <div>
               <label style={labelStyle}>Data</label>
@@ -370,6 +487,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
           )}
 
+          {/* ── Step 5: Horário ── */}
           {date && slots.length > 0 && (
             <div>
               <label style={labelStyle}>Horário disponível</label>
@@ -388,6 +506,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>Sem horários disponíveis neste dia.</div>
           )}
 
+          {/* ── Step 6: Observações ── */}
           {slot && (
             <div>
               <label style={labelStyle}>Observações (opcional)</label>

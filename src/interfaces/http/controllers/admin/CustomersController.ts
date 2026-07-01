@@ -12,6 +12,15 @@ export class CustomersController {
     private readonly conversationRepo: IConversationRepository,
   ) {}
 
+  async create(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { name, phone } = request.body as { name?: string; phone?: string }
+    if (!name || !phone) { reply.code(400).send({ error: 'name and phone are required' }); return }
+    const existing = await this.customerRepo.findByPhone(phone)
+    if (existing) { reply.code(409).send({ error: 'Já existe um cliente com esse telefone' }); return }
+    const customer = await this.customerRepo.create({ name, phone, whatsappName: null })
+    reply.code(201).send({ customer })
+  }
+
   async list(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number }
     const [customers, total] = await Promise.all([
