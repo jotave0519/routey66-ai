@@ -75,6 +75,11 @@ export class VehicleRepository implements IVehicleRepository {
     return toVehicle(row)
   }
 
+  async delete(id: string): Promise<void> {
+    const { error } = await this.db.from('vehicles').delete().eq('id', id)
+    if (error) throw new Error(`VehicleRepository.delete: ${error.message}`)
+  }
+
   async update(
     id: string,
     data: Partial<Pick<Vehicle, 'brand' | 'model' | 'plate' | 'year'>>

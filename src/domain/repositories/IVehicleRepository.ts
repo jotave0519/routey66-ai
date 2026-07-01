@@ -11,6 +11,7 @@ export interface IVehicleRepository {
   findById(id: string): Promise<Vehicle | null>
   create(data: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>): Promise<Vehicle>
   update(id: string, data: Partial<Pick<Vehicle, 'brand' | 'model' | 'plate' | 'year'>>): Promise<Vehicle>
+  delete(id: string): Promise<void>
   listAll(limit?: number, offset?: number): Promise<VehicleWithOwner[]>
   countAll(): Promise<number>
 }

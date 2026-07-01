@@ -45,11 +45,15 @@ export function adminRoutes(fastify: FastifyInstance, controllers: AdminControll
   fastify.get('/admin/customers', (req, reply) => controllers.customers.list(req, reply))
   fastify.post('/admin/customers', (req, reply) => controllers.customers.create(req, reply))
   fastify.get('/admin/customers/:id', (req, reply) => controllers.customers.getOne(req, reply))
+  fastify.patch('/admin/customers/:id', (req, reply) => controllers.customers.update(req, reply))
+  fastify.delete('/admin/customers/:id', (req, reply) => controllers.customers.remove(req, reply))
 
   // Vehicles
   fastify.get('/admin/vehicles', (req, reply) => controllers.vehicles.list(req, reply))
   fastify.post('/admin/vehicles', (req, reply) => controllers.vehicles.create(req, reply))
   fastify.get('/admin/vehicles/:id', (req, reply) => controllers.vehicles.getOne(req, reply))
+  fastify.patch('/admin/vehicles/:id', (req, reply) => controllers.vehicles.update(req, reply))
+  fastify.delete('/admin/vehicles/:id', (req, reply) => controllers.vehicles.remove(req, reply))
 
   // Stock
   fastify.get('/admin/stock/summary', (req, reply) => controllers.stock.summary(req, reply))

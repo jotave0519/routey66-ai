@@ -58,6 +58,11 @@ export class CustomerRepository implements ICustomerRepository {
     return toCustomer(row)
   }
 
+  async delete(id: string): Promise<void> {
+    const { error } = await this.db.from('customers').delete().eq('id', id)
+    if (error) throw new Error(`CustomerRepository.delete: ${error.message}`)
+  }
+
   async update(id: string, data: Partial<Pick<Customer, 'name' | 'whatsappName'>>): Promise<Customer> {
     const { data: row, error } = await this.db
       .from('customers')

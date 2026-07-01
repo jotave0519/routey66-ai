@@ -21,6 +21,26 @@ export class CustomersController {
     reply.code(201).send({ customer })
   }
 
+  async update(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { id } = request.params as { id: string }
+    const { name, phone } = request.body as { name?: string; phone?: string }
+    const customer = await this.customerRepo.findById(id)
+    if (!customer) { reply.code(404).send({ error: 'Customer not found' }); return }
+    const updated = await this.customerRepo.update(id, {
+      ...(name !== undefined && { name }),
+      ...(phone !== undefined && { whatsappName: phone }),
+    })
+    reply.send({ customer: updated })
+  }
+
+  async remove(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { id } = request.params as { id: string }
+    const customer = await this.customerRepo.findById(id)
+    if (!customer) { reply.code(404).send({ error: 'Customer not found' }); return }
+    await this.customerRepo.delete(id)
+    reply.code(204).send()
+  }
+
   async list(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number }
     const [customers, total] = await Promise.all([
