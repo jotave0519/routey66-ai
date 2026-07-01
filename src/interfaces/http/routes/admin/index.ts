@@ -79,6 +79,8 @@ export function adminRoutes(fastify: FastifyInstance, controllers: AdminControll
   fastify.get('/admin/settings', (req, reply) => controllers.settings.get(req, reply))
   fastify.patch('/admin/settings', (req, reply) => controllers.settings.update(req, reply))
 
-  // WhatsApp status
+  // WhatsApp
   fastify.get('/admin/whatsapp/status', (req, reply) => controllers.whatsapp.status(req, reply))
+  fastify.get('/admin/whatsapp/qrcode', (req, reply) => controllers.whatsapp.qrcode(req, reply))
+  fastify.delete('/admin/whatsapp/logout', (req, reply) => controllers.whatsapp.logout(req, reply))
 }
